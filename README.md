@@ -23,6 +23,9 @@ Check it before assuming a feature does or doesn't exist, and keep it updated as
 including the fastest free path for a weekend test session. **→ [`docs/costs.md`](docs/costs.md)**
 covers what actually costs money and what to spin down when you're done.
 
+**Already set up and heading out the door? → [`docs/quickstart.md`](docs/quickstart.md)** — the
+short version: one command, how everyone connects, and what has to stay running all night.
+
 **Don't have a phone handy? → [`docs/local-dev-without-a-phone.md`](docs/local-dev-without-a-phone.md)**
 — develop the whole compass loop in a laptop browser with a mock GPS/heading, no phone or
 emulator required.

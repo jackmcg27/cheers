@@ -72,10 +72,13 @@ Last updated: 2026-07-04.
 - [ ] Any screen/component tests (needs `@testing-library/react-native` + native-module mocks,
       not set up yet)
 
-## Deployment 🚧 not started
+## Deployment 🚧 partial
 
-- [ ] Nothing shipped yet beyond local dev via Expo Go. See `docs/deployment.md` when ready to
-      test on real devices beyond your own dev machine.
+- [x] Tunnel testing (`npx expo start --tunnel`, `@expo/ngrok` installed) — verified working
+      end to end on a real phone off Wi-Fi. See `docs/quickstart.md` for the fast path,
+      `docs/deployment.md` for all options.
+- [ ] No standalone installed build yet (EAS Build APK/TestFlight) — still running live off a
+      dev machine via Expo Go for every session, per `docs/deployment.md` Path 1.
 
 ## Known gaps / tech debt
 
