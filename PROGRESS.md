@@ -9,7 +9,7 @@ you finish (or start) something.
 > Leave the "Known gaps / tech debt" section honest — it's more useful than a checklist that
 > only ever says "done."
 
-Last updated: 2026-07-02.
+Last updated: 2026-07-03.
 
 ## Phase 1 — Core loop ✅ done
 
@@ -29,6 +29,8 @@ Last updated: 2026-07-02.
 - [x] Feed screen: posts from you + people you follow, realtime new-post updates
 - [x] Likes (toggle) and comments on posts
 - [x] Find-people search (by display name) with follow button inline
+- [x] Display name collected at sign-up (required) and editable afterward from the History tab
+      (fixes an earlier gap where it was never set and everyone showed as "Someone")
 
 ## Phase 3 — Crawl routes ✅ done
 
@@ -38,6 +40,12 @@ Last updated: 2026-07-02.
 - [x] Crawl detail screen: ordered stop list, "Open in Maps" per stop
 - [x] "Start This Crawl" — compass follows the fixed route stop-by-stop instead of
       always picking the nearest bar (freeform mode still available too)
+
+## Developer experience ✅ done
+
+- [x] Mock-location dev mode (`EXPO_PUBLIC_MOCK_LOCATION=true`) — develop and test the whole
+      compass loop in a laptop browser, no phone/emulator/magnetometer needed. See
+      `docs/local-dev-without-a-phone.md`.
 
 ## Phase 4 — Polish 🚧 not started
 
