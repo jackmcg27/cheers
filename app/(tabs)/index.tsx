@@ -6,11 +6,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BarRevealCard } from '@/components/BarRevealCard';
 import { CompassArrow } from '@/components/CompassArrow';
 import { DrinkCounter } from '@/components/DrinkCounter';
+import { MockLocationControls } from '@/components/MockLocationControls';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useHeading } from '@/hooks/useHeading';
 import { useLocation } from '@/hooks/useLocation';
 import { bearingDegrees, distanceMeters, formatDistance } from '@/lib/bearing';
+import { isMockLocationEnabled } from '@/lib/mock-location';
 import { useTrip } from '@/lib/trip-context';
 
 const ARRIVAL_RADIUS_M = 40;
@@ -66,6 +68,8 @@ export default function CompassScreen() {
           <ThemedText>Reveal</ThemedText>
         </View>
       </View>
+
+      {isMockLocationEnabled && <MockLocationControls targetLocation={targetBar?.location ?? null} />}
 
       {locationError && <ThemedText style={styles.error}>{locationError}</ThemedText>}
       {error && <ThemedText style={styles.error}>{error}</ThemedText>}

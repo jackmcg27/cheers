@@ -1,8 +1,9 @@
 import * as Location from 'expo-location';
 import { useEffect, useState } from 'react';
 
-/** Live device compass heading in degrees [0, 360), true north where available. */
-export function useHeading() {
+import { isMockLocationEnabled, useMockLocation } from '@/lib/mock-location';
+
+function useRealHeading(): number | null {
   const [heading, setHeading] = useState<number | null>(null);
 
   useEffect(() => {
@@ -28,3 +29,14 @@ export function useHeading() {
 
   return heading;
 }
+
+function useFakeHeading(): number | null {
+  return useMockLocation().heading;
+}
+
+/**
+ * Live device compass heading in degrees [0, 360), true north where available.
+ * When EXPO_PUBLIC_MOCK_LOCATION=true, returns a fake heading you control on-screen instead —
+ * see lib/mock-location.ts and docs/local-dev-without-a-phone.md.
+ */
+export const useHeading = isMockLocationEnabled ? useFakeHeading : useRealHeading;

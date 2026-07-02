@@ -45,10 +45,12 @@ The Compass screen (`app/(tabs)/index.tsx`) is the one screen that reads live GP
 | `feed.ts` | Feed posts, likes, comments, follow/unfollow, profile search. |
 | `format.ts` | `formatDistance` (re-exported from `bearing.ts`) + `formatDuration`, for display. |
 | `errors.ts` | `errorMessage(e, fallback)` — **always use this in catch blocks.** See gotchas below. |
+| `mock-location.ts` | Dev-only fake GPS/heading store, gated behind `EXPO_PUBLIC_MOCK_LOCATION`. Swapped in by `hooks/useLocation.ts`/`hooks/useHeading.ts` at module level. See `docs/local-dev-without-a-phone.md`. |
 
 ## `components/`
 
 - `CompassArrow.tsx`, `BarRevealCard.tsx`, `DrinkCounter.tsx` — Compass-screen specific.
+- `MockLocationControls.tsx` — dev-only widget, only rendered when `EXPO_PUBLIC_MOCK_LOCATION` is on. See `docs/local-dev-without-a-phone.md`.
 - `ThemedText.tsx`, `ThemedView.tsx`, `ui/IconSymbol.tsx`, `HapticTab.tsx`, `ui/TabBarBackground.tsx` — theme-aware primitives from the original Expo template, reused everywhere.
 
 ## `supabase/migrations/`

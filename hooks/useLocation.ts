@@ -1,14 +1,15 @@
 import * as Location from 'expo-location';
 import { useEffect, useState } from 'react';
 
+import { isMockLocationEnabled, useMockLocation } from '@/lib/mock-location';
+
 export type LocationState = {
   coords: { latitude: number; longitude: number } | null;
   errorMsg: string | null;
   loading: boolean;
 };
 
-/** Live GPS position, updated as the device moves. Requires foreground location permission. */
-export function useLocation() {
+function useRealLocation(): LocationState {
   const [state, setState] = useState<LocationState>({
     coords: null,
     errorMsg: null,
@@ -49,3 +50,19 @@ export function useLocation() {
 
   return state;
 }
+
+function useFakeLocation(): LocationState {
+  const mock = useMockLocation();
+  return {
+    coords: { latitude: mock.latitude, longitude: mock.longitude },
+    errorMsg: null,
+    loading: false,
+  };
+}
+
+/**
+ * Live GPS position, updated as the device moves. Requires foreground location permission.
+ * When EXPO_PUBLIC_MOCK_LOCATION=true, returns a fake position instead — see
+ * lib/mock-location.ts and docs/local-dev-without-a-phone.md.
+ */
+export const useLocation = isMockLocationEnabled ? useFakeLocation : useRealLocation;

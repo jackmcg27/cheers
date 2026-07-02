@@ -21,6 +21,10 @@ Check it before assuming a feature does or doesn't exist, and keep it updated as
 including the fastest free path for a weekend test session. **→ [`docs/costs.md`](docs/costs.md)**
 covers what actually costs money and what to spin down when you're done.
 
+**Don't have a phone handy? → [`docs/local-dev-without-a-phone.md`](docs/local-dev-without-a-phone.md)**
+— develop the whole compass loop in a laptop browser with a mock GPS/heading, no phone or
+emulator required.
+
 ## Stack
 
 - Expo (React Native, TypeScript) + expo-router (SDK 54)
@@ -40,7 +44,9 @@ npx expo start
 ```
 
 Scan the QR with **Expo Go** on a physical phone — GPS and compass heading don't work in a
-simulator or on web.
+simulator or on web by default. No phone available? See
+[`docs/local-dev-without-a-phone.md`](docs/local-dev-without-a-phone.md) for a mock-location dev
+mode that works in a plain laptop browser.
 
 ## Tests
 
