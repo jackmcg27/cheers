@@ -9,7 +9,7 @@ you finish (or start) something.
 > Leave the "Known gaps / tech debt" section honest — it's more useful than a checklist that
 > only ever says "done."
 
-Last updated: 2026-07-03.
+Last updated: 2026-07-04.
 
 ## Phase 1 — Core loop ✅ done
 
@@ -46,22 +46,26 @@ Last updated: 2026-07-03.
 - [x] Mock-location dev mode (`EXPO_PUBLIC_MOCK_LOCATION=true`) — develop and test the whole
       compass loop in a laptop browser, no phone/emulator/magnetometer needed. See
       `docs/local-dev-without-a-phone.md`.
+- [x] CI (`.github/workflows/ci.yml`): typecheck, lint, tests + coverage (gated by a threshold,
+      reported in the job summary + as an artifact), and a bundle sanity check — runs on every
+      push to `main` and every PR.
 
-## Phase 4 — Polish 🚧 not started
+## Phase 4 — Polish 🚧 partial
 
+- [x] Drink type / name on a logged drink — optional text field next to "+ Drink"
+      (`drink_logs.drink_name`, not surfaced elsewhere yet — see Known gaps)
+- [x] Edit (name/description/public) / delete a crawl — creator-only, from the crawl detail screen
+- [x] Profile / stats screen — folded into the History tab rather than a new tab (total crawls,
+      bars visited, drinks, distance walked, crawls published)
 - [ ] Trip photos
 - [ ] Real map widget (route/pins) — currently "Open in Maps" links only, see
       [`docs/architecture.md`](docs/architecture.md) for why
-- [ ] Profile / stats screen (total bars visited, total crawls, etc.)
 - [ ] "Drink responsibly" pace nudge
-- [ ] Edit / delete a crawl after publishing (currently create-only)
-- [ ] Drink type / name on a logged drink (schema supports it via `drink_logs.drink_name`,
-      no UI to set it yet — the counter just increments)
 
 ## Testing 🚧 partial
 
-- [x] Unit tests for `lib/` (bearing math, formatting, errors, Places API, Supabase-backed
-      crawl/feed logic) — see `docs/architecture.md`'s Testing section
+- [x] Unit tests for `lib/` (bearing math, formatting, errors, Places API, Supabase- and
+      Supabase-mock-backed crawl/feed/stats logic) — see `docs/architecture.md`'s Testing section
 - [ ] Tests for `lib/trip-context.tsx` (the compass state machine)
 - [ ] Any screen/component tests (needs `@testing-library/react-native` + native-module mocks,
       not set up yet)
@@ -73,6 +77,10 @@ Last updated: 2026-07-03.
 
 ## Known gaps / tech debt
 
+- Drink names/types are captured (`drink_logs.drink_name`) but not shown anywhere yet — History
+  and Feed still only show a total drink count, not a per-drink breakdown.
+- Editing a crawl only covers name/description/visibility, not the stop list itself (no
+  reorder/add/remove after publishing — would need to reuse the builder UI from `create.tsx`).
 - No way to remove a follow relationship from the UI other than the Feed tab's search result
   row (works, just not discoverable from a profile view — there is no profile view yet).
 - `crawls` has no `updated_at`/edit history; publishing twice from the same trip creates two
