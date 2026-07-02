@@ -25,6 +25,12 @@ import {
 import { errorMessage } from '@/lib/errors';
 import { useTrip } from '@/lib/trip-context';
 
+// Guards against a router quirk: replacing away from this screen to a sibling static route
+// (e.g. after delete, router.replace('/(tabs)/crawls/index')) can transiently re-render this
+// still-mounted [id] screen against the new URL, matching the literal segment "index" as if it
+// were the id param. crawls.id is a uuid column, so that query fails loudly — skip it instead.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default function CrawlDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useAuth();
@@ -43,7 +49,7 @@ export default function CrawlDetailScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (!id) return;
+      if (!id || !UUID_RE.test(id)) return;
       let cancelled = false;
       setLoading(true);
       fetchCrawlDetail(id)
