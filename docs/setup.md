@@ -54,6 +54,8 @@ Run them in this exact order:
 2. `0002_phase2_3_schema.sql` — crawls, follows, feed.
 3. `0003_feed_trip_visibility.sql` — fixes read access so followers can see trip detail on
    feed posts.
+4. `0004_trips_crawl_id_on_delete_set_null.sql` — fixes deleting a crawl someone had started
+   (was blocked by a foreign key violation).
 
 If a new migration file has been added since this doc was last updated, run it too — always
 apply every file in `supabase/migrations/` that you haven't already run, in numeric order.

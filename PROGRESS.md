@@ -55,6 +55,8 @@ Last updated: 2026-07-04.
 - [x] Drink type / name on a logged drink — optional text field next to "+ Drink"
       (`drink_logs.drink_name`, not surfaced elsewhere yet — see Known gaps)
 - [x] Edit (name/description/public) / delete a crawl — creator-only, from the crawl detail screen
+      (delete needed a follow-up migration, `0004`, since `trips.crawl_id` had no `ON DELETE`
+      behavior and blocked deleting any crawl someone had actually started — now `SET NULL`)
 - [x] Profile / stats screen — folded into the History tab rather than a new tab (total crawls,
       bars visited, drinks, distance walked, crawls published)
 - [ ] Trip photos

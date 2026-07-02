@@ -60,6 +60,8 @@ Run these **in order** against a fresh project (Supabase dashboard → SQL Edito
 1. `0001_phase1_schema.sql` — `profiles`, `bars`, `trips`, `trip_stops`, `drink_logs` + RLS (owner-only).
 2. `0002_phase2_3_schema.sql` — `follows`, `crawls`, `crawl_stops`, `feed_posts`, `post_likes`, `post_comments`, adds `trips.crawl_id`, relaxes `profiles` to be readable by any authenticated user, enables realtime on `feed_posts`.
 3. `0003_feed_trip_visibility.sql` — extends `trips`/`trip_stops`/`drink_logs` read access so a *follower* can see the stop/drink detail behind someone else's feed post, not just the post owner.
+4. `0004_trips_crawl_id_on_delete_set_null.sql` — `trips.crawl_id` had no `ON DELETE` behavior,
+   so deleting a crawl someone had started failed with a foreign key violation. Now `SET NULL`.
 
 RLS policies are **additive** — Postgres OR's together every permissive policy on the same table/action. `0003` doesn't replace the owner-only policies from `0001`, it adds a second path.
 
