@@ -73,6 +73,36 @@ RLS policies are **additive** — Postgres OR's together every permissive policy
 | DB schema change | new numbered file in `supabase/migrations/`, then update the `Database` type in `lib/supabase.ts` to match |
 | Auth flow | `lib/auth-context.tsx`, `app/(auth)/sign-in.tsx` |
 
+## Testing
+
+```bash
+npm run test:ci    # run once and exit (CI, pre-push checks)
+npm test           # watch mode
+```
+
+Tests live next to what they test, in `lib/__tests__/`. Coverage is deliberately scoped to
+what's cheap and high-value to test in isolation, not the whole app:
+
+- `bearing.test.ts`, `format.test.ts`, `errors.test.ts` — pure functions, no mocking.
+- `places.test.ts` — mocks `global.fetch`; covers request shape, response mapping, missing-API-key
+  and non-ok-response error paths.
+- `crawls.test.ts`, `feed.test.ts` — mock the `supabase` module with a small stub query builder
+  (every chain method returns itself; the object is "thenable" and resolves to whatever
+  `{ data, error }` you configure per table name). Covers the data-mapping and multi-step write
+  logic in `lib/crawls.ts` / `lib/feed.ts` (e.g. that `createCrawl` preserves stop order even
+  though Supabase doesn't guarantee upsert response order).
+
+**Not covered**, intentionally — these need real component-rendering infra
+(`@testing-library/react-native` + native-module mocks for `expo-location`/`expo-router`) that
+isn't set up yet, and the payoff is lower per hour spent than the `lib/` coverage above:
+`lib/trip-context.tsx` (the compass state machine), and the screens under `app/`. If you add
+that infra later, the trip-context state machine (`idle → loading → traveling → arrived`,
+freeform vs. crawl-route `nextBar` branching) is the highest-value next target.
+
+When you add a new `lib/*.ts` file with real logic (not just types), add a matching
+`lib/__tests__/*.test.ts` following the patterns above — copy whichever existing test file is
+closest to what you're testing rather than starting from scratch.
+
 ## Gotchas hit while building this (read before you lose an hour to them)
 
 - **Compass heading/GPS don't work in a simulator or on web.** Test on a physical device via Expo Go.

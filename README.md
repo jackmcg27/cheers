@@ -34,6 +34,16 @@ npx expo start
 Scan the QR with **Expo Go** on a physical phone — GPS and compass heading don't work in a
 simulator or on web.
 
+## Tests
+
+```bash
+npm run test:ci
+```
+
+Unit tests cover the `lib/` data/logic layer (bearing math, formatting, error handling, Google
+Places calls, Supabase-backed crawl/feed logic). See the **Testing** section in
+[`docs/architecture.md`](docs/architecture.md) for what's covered and how to add more.
+
 ## Project layout
 
 ```
