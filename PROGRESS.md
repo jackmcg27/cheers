@@ -1,0 +1,77 @@
+# Progress
+
+What's built, what's not, and what's known to be missing or rough. This is the source of truth
+for project status — check it before assuming a feature doesn't exist, and **update it** when
+you finish (or start) something.
+
+> **If you're an AI coding agent working in this repo**: update this file as part of any task
+> that adds, removes, or changes a feature. Move items between sections, don't just append.
+> Leave the "Known gaps / tech debt" section honest — it's more useful than a checklist that
+> only ever says "done."
+
+Last updated: 2026-07-02.
+
+## Phase 1 — Core loop ✅ done
+
+- [x] Auth (Supabase email/password + magic link)
+- [x] Compass screen: live GPS + device heading, arrow points at target bar
+- [x] Reveal Mode toggle ("Surprise Me" vs. show name/address/photo)
+- [x] Nearest-bar search via Google Places API (New)
+- [x] Manual "I'm here" arrival confirm (+ auto-hint when close)
+- [x] Drink counter per stop
+- [x] Trip saved to Supabase (stops with arrival/departure timestamps, drink logs)
+- [x] Trip History tab (past trips: stops, drinks, duration, distance)
+
+## Phase 2 — Social ✅ done
+
+- [x] Post a finished trip to the feed (caption + stats)
+- [x] Follow / unfollow (one-directional, no request/accept step)
+- [x] Feed screen: posts from you + people you follow, realtime new-post updates
+- [x] Likes (toggle) and comments on posts
+- [x] Find-people search (by display name) with follow button inline
+
+## Phase 3 — Crawl routes ✅ done
+
+- [x] Publish a completed trip's stop order as a named, shareable crawl
+- [x] Dedicated crawl builder: search bars by text, add in order, reorder, save
+- [x] Browse public crawls + your own (Crawls tab)
+- [x] Crawl detail screen: ordered stop list, "Open in Maps" per stop
+- [x] "Start This Crawl" — compass follows the fixed route stop-by-stop instead of
+      always picking the nearest bar (freeform mode still available too)
+
+## Phase 4 — Polish 🚧 not started
+
+- [ ] Trip photos
+- [ ] Real map widget (route/pins) — currently "Open in Maps" links only, see
+      [`docs/architecture.md`](docs/architecture.md) for why
+- [ ] Profile / stats screen (total bars visited, total crawls, etc.)
+- [ ] "Drink responsibly" pace nudge
+- [ ] Edit / delete a crawl after publishing (currently create-only)
+- [ ] Drink type / name on a logged drink (schema supports it via `drink_logs.drink_name`,
+      no UI to set it yet — the counter just increments)
+
+## Testing 🚧 partial
+
+- [x] Unit tests for `lib/` (bearing math, formatting, errors, Places API, Supabase-backed
+      crawl/feed logic) — see `docs/architecture.md`'s Testing section
+- [ ] Tests for `lib/trip-context.tsx` (the compass state machine)
+- [ ] Any screen/component tests (needs `@testing-library/react-native` + native-module mocks,
+      not set up yet)
+
+## Deployment 🚧 not started
+
+- [ ] Nothing shipped yet beyond local dev via Expo Go. See `docs/deployment.md` when ready to
+      test on real devices beyond your own dev machine.
+
+## Known gaps / tech debt
+
+- No way to remove a follow relationship from the UI other than the Feed tab's search result
+  row (works, just not discoverable from a profile view — there is no profile view yet).
+- `crawls` has no `updated_at`/edit history; publishing twice from the same trip creates two
+  separate crawls.
+- Feed pagination doesn't exist — `fetchFeed` pulls everything visible in one query. Fine at
+  current scale, will need a `.range()`/cursor before this matters.
+- No push notifications — realtime feed updates only fire while the Feed tab is open and
+  mounted.
+- No offline handling — the app assumes a live network connection throughout; a dropped
+  connection mid-crawl doesn't queue writes.

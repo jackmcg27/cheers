@@ -13,6 +13,14 @@ a troubleshooting section for the issues we actually hit while building this.
 — what each directory is for, where to look to change something, and a list of non-obvious
 gotchas worth knowing before you touch the code.
 
+**Wondering what's actually built? → [`PROGRESS.md`](PROGRESS.md)** — the living status tracker.
+Check it before assuming a feature does or doesn't exist, and keep it updated as things change
+(AI agents working in this repo are instructed to via `AGENTS.md`).
+
+**Want to test on real devices, or deploy it? → [`docs/deployment.md`](docs/deployment.md)** —
+including the fastest free path for a weekend test session. **→ [`docs/costs.md`](docs/costs.md)**
+covers what actually costs money and what to spin down when you're done.
+
 ## Stack
 
 - Expo (React Native, TypeScript) + expo-router (SDK 54)
@@ -62,8 +70,5 @@ guide to where to make common changes.
 
 ## Current status
 
-Core loop, crawl routes, and social feed are built and working end to end: compass-guided
-freeform or fixed-route crawling, drink logging, trip history, publishing a trip as a
-shareable crawl or feed post, following people, and a live-updating feed with likes and
-comments. Not yet built: trip photos, in-app maps (currently "open in Maps" links instead),
-and a dedicated profile/stats screen.
+See [`PROGRESS.md`](PROGRESS.md) for the up-to-date, maintained breakdown of what's done, what's
+not, and known gaps — kept there instead of duplicated here so it doesn't go stale.
