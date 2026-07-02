@@ -20,19 +20,21 @@ type TripSummary = {
   trip_stops: { drink_logs: { count: number }[] }[];
 };
 
-type PendingAction = { type: 'post' | 'crawl'; tripId: string };
+type PendingAction = { type: 'post' | 'crawl'; tripId: string } | { type: 'name' };
 
 export default function HistoryScreen() {
   const { session } = useAuth();
   const insets = useSafeAreaInsets();
   const [trips, setTrips] = useState<TripSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [myDisplayName, setMyDisplayName] = useState<string | null>(null);
 
   const [action, setAction] = useState<PendingAction | null>(null);
   const [caption, setCaption] = useState('');
   const [crawlName, setCrawlName] = useState('');
   const [crawlDescription, setCrawlDescription] = useState('');
   const [crawlPublic, setCrawlPublic] = useState(true);
+  const [nameDraft, setNameDraft] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -51,11 +53,27 @@ export default function HistoryScreen() {
       });
   }, [session]);
 
+  const loadMyProfile = useCallback(() => {
+    if (!session) return;
+    supabase
+      .from('profiles')
+      .select('display_name')
+      .eq('id', session.user.id)
+      .single()
+      .then(({ data }) => setMyDisplayName(data?.display_name ?? null));
+  }, [session]);
+
   useFocusEffect(
     useCallback(() => {
       loadTrips();
-    }, [loadTrips])
+      loadMyProfile();
+    }, [loadTrips, loadMyProfile])
   );
+
+  function openNameModal() {
+    setNameDraft(myDisplayName ?? '');
+    setAction({ type: 'name' });
+  }
 
   function closeModal() {
     setAction(null);
@@ -63,6 +81,7 @@ export default function HistoryScreen() {
     setCrawlName('');
     setCrawlDescription('');
     setCrawlPublic(true);
+    setNameDraft('');
     setActionError(null);
   }
 
@@ -76,7 +95,7 @@ export default function HistoryScreen() {
           .from('feed_posts')
           .insert({ trip_id: action.tripId, user_id: session.user.id, caption: caption.trim() || null });
         if (error) throw error;
-      } else {
+      } else if (action.type === 'crawl') {
         if (!crawlName.trim()) throw new Error('Give the crawl a name.');
         await publishTripAsCrawl({
           tripId: action.tripId,
@@ -85,6 +104,14 @@ export default function HistoryScreen() {
           description: crawlDescription.trim() || null,
           isPublic: crawlPublic,
         });
+      } else {
+        if (!nameDraft.trim()) throw new Error('Display name can\'t be empty.');
+        const { error } = await supabase
+          .from('profiles')
+          .update({ display_name: nameDraft.trim() })
+          .eq('id', session.user.id);
+        if (error) throw error;
+        setMyDisplayName(nameDraft.trim());
       }
       closeModal();
     } catch (e) {
@@ -99,6 +126,14 @@ export default function HistoryScreen() {
       <ThemedText type="title" style={styles.title}>
         Trip History
       </ThemedText>
+      <View style={styles.profileRow}>
+        <ThemedText style={styles.profileText}>
+          {myDisplayName ? `Signed in as ${myDisplayName}` : 'No display name set'}
+        </ThemedText>
+        <Pressable onPress={openNameModal}>
+          <ThemedText style={styles.editName}>{myDisplayName ? 'Edit' : 'Set name'}</ThemedText>
+        </Pressable>
+      </View>
       <Pressable onPress={() => supabase.auth.signOut()}>
         <ThemedText style={styles.signOut}>Sign out</ThemedText>
       </Pressable>
@@ -141,10 +176,14 @@ export default function HistoryScreen() {
         <View style={styles.modalBackdrop}>
           <ThemedView style={styles.modalCard}>
             <ThemedText type="subtitle">
-              {action?.type === 'post' ? 'Post to Feed' : 'Publish as Crawl'}
+              {action?.type === 'post'
+                ? 'Post to Feed'
+                : action?.type === 'crawl'
+                  ? 'Publish as Crawl'
+                  : 'Display Name'}
             </ThemedText>
 
-            {action?.type === 'post' ? (
+            {action?.type === 'post' && (
               <TextInput
                 style={styles.input}
                 placeholder="Caption (optional)"
@@ -153,7 +192,8 @@ export default function HistoryScreen() {
                 onChangeText={setCaption}
                 multiline
               />
-            ) : (
+            )}
+            {action?.type === 'crawl' && (
               <>
                 <TextInput
                   style={styles.input}
@@ -175,6 +215,15 @@ export default function HistoryScreen() {
                   <ThemedText>Public</ThemedText>
                 </View>
               </>
+            )}
+            {action?.type === 'name' && (
+              <TextInput
+                style={styles.input}
+                placeholder="Display name"
+                placeholderTextColor="#888"
+                value={nameDraft}
+                onChangeText={setNameDraft}
+              />
             )}
 
             {actionError && <ThemedText style={styles.error}>{actionError}</ThemedText>}
@@ -202,6 +251,14 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20 },
   title: { marginBottom: 4 },
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  profileText: { opacity: 0.8 },
+  editName: { color: '#0a84ff' },
   signOut: { color: '#ff453a', marginBottom: 16 },
   list: { gap: 12 },
   card: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#3a3a3c', gap: 4 },

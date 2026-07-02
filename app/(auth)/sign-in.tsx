@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 
 export default function SignIn() {
   const { session } = useAuth();
+  const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState<string | null>(null);
@@ -27,7 +28,14 @@ export default function SignIn() {
   const signIn = () =>
     withBusy(() => supabase.auth.signInWithPassword({ email, password }));
 
-  const signUp = () => withBusy(() => supabase.auth.signUp({ email, password }));
+  const signUp = () =>
+    withBusy(() =>
+      supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { display_name: displayName.trim() } },
+      })
+    );
 
   const sendMagicLink = () =>
     withBusy(async () => {
@@ -41,6 +49,13 @@ export default function SignIn() {
       <ThemedText type="title">Cheers</ThemedText>
       <ThemedText style={styles.subtitle}>Sign in to start a crawl</ThemedText>
 
+      <TextInput
+        style={styles.input}
+        placeholder="Display name (for Sign Up — shown to friends)"
+        placeholderTextColor="#888"
+        value={displayName}
+        onChangeText={setDisplayName}
+      />
       <TextInput
         style={styles.input}
         placeholder="Email"
@@ -65,7 +80,10 @@ export default function SignIn() {
         <Pressable style={styles.button} disabled={busy} onPress={signIn}>
           <ThemedText style={styles.buttonText}>Sign In</ThemedText>
         </Pressable>
-        <Pressable style={[styles.button, styles.secondary]} disabled={busy} onPress={signUp}>
+        <Pressable
+          style={[styles.button, styles.secondary, !displayName.trim() && styles.disabled]}
+          disabled={busy || !displayName.trim()}
+          onPress={signUp}>
           <ThemedText style={styles.buttonText}>Sign Up</ThemedText>
         </Pressable>
       </View>
@@ -91,6 +109,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 12, marginTop: 8 },
   button: { flex: 1, backgroundColor: '#0a84ff', borderRadius: 10, padding: 14, alignItems: 'center' },
   secondary: { backgroundColor: '#3a3a3c' },
+  disabled: { opacity: 0.5 },
   buttonText: { color: '#fff', fontWeight: '600' },
   link: { textAlign: 'center', marginTop: 16, color: '#0a84ff' },
   status: { color: '#ff9f0a', textAlign: 'center' },
