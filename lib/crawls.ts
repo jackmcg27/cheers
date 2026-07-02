@@ -217,3 +217,21 @@ export async function publishTripAsCrawl(options: {
 
   return crawl.id;
 }
+
+/** Updates a crawl's name/description/visibility. RLS restricts this to the crawl's creator. */
+export async function updateCrawl(
+  crawlId: string,
+  updates: { name: string; description: string | null; isPublic: boolean }
+): Promise<void> {
+  const { error } = await supabase
+    .from('crawls')
+    .update({ name: updates.name, description: updates.description, is_public: updates.isPublic })
+    .eq('id', crawlId);
+  if (error) throw error;
+}
+
+/** Deletes a crawl. RLS restricts this to the creator; crawl_stops cascade-delete with it. */
+export async function deleteCrawl(crawlId: string): Promise<void> {
+  const { error } = await supabase.from('crawls').delete().eq('id', crawlId);
+  if (error) throw error;
+}

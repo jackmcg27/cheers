@@ -5,9 +5,11 @@ import { supabase } from '../supabase';
 import {
   createCrawl,
   crawlStopToPlaceBar,
+  deleteCrawl,
   fetchCrawlDetail,
   fetchCrawls,
   publishTripAsCrawl,
+  updateCrawl,
 } from '../crawls';
 import type { PlaceBar } from '../places';
 
@@ -22,6 +24,7 @@ function queryResult(response: unknown) {
     upsert: jest.fn(() => obj),
     insert: jest.fn(() => obj),
     update: jest.fn(() => obj),
+    delete: jest.fn(() => obj),
     then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
       Promise.resolve(response).then(resolve, reject),
   };
@@ -308,5 +311,51 @@ describe('publishTripAsCrawl', () => {
         isPublic: false,
       })
     ).rejects.toThrow('no stops to publish');
+  });
+});
+
+describe('updateCrawl', () => {
+  it('updates name/description/is_public for the given crawl', async () => {
+    const q = queryResult({ error: null });
+    mockFrom.mockImplementation((table: string) => {
+      expect(table).toBe('crawls');
+      return q;
+    });
+
+    await updateCrawl('crawl-1', { name: 'New Name', description: 'New desc', isPublic: false });
+
+    expect(q.update).toHaveBeenCalledWith({
+      name: 'New Name',
+      description: 'New desc',
+      is_public: false,
+    });
+    expect(q.eq).toHaveBeenCalledWith('id', 'crawl-1');
+  });
+
+  it('throws on failure', async () => {
+    mockFrom.mockImplementation(() => queryResult({ error: { message: 'denied' } }));
+    await expect(
+      updateCrawl('crawl-1', { name: 'X', description: null, isPublic: true })
+    ).rejects.toEqual({ message: 'denied' });
+  });
+});
+
+describe('deleteCrawl', () => {
+  it('deletes the crawl by id', async () => {
+    const q = queryResult({ error: null });
+    mockFrom.mockImplementation((table: string) => {
+      expect(table).toBe('crawls');
+      return q;
+    });
+
+    await deleteCrawl('crawl-1');
+
+    expect(q.delete).toHaveBeenCalled();
+    expect(q.eq).toHaveBeenCalledWith('id', 'crawl-1');
+  });
+
+  it('throws on failure', async () => {
+    mockFrom.mockImplementation(() => queryResult({ error: { message: 'denied' } }));
+    await expect(deleteCrawl('crawl-1')).rejects.toEqual({ message: 'denied' });
   });
 });

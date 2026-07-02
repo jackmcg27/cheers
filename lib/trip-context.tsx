@@ -24,7 +24,7 @@ type TripContextValue = {
   startCrawl: (coords: Coords) => Promise<void>;
   startCrawlWithRoute: (crawl: { id: string; stops: PlaceBar[] }) => Promise<void>;
   confirmArrival: () => Promise<void>;
-  addDrink: () => Promise<void>;
+  addDrink: (name?: string) => Promise<void>;
   nextBar: (coords: Coords | null) => Promise<void>;
   endCrawl: () => Promise<void>;
 };
@@ -151,11 +151,11 @@ export function TripProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function addDrink() {
+  async function addDrink(name?: string) {
     if (!currentStopId) return;
     const { error: drinkError } = await supabase
       .from('drink_logs')
-      .insert({ trip_stop_id: currentStopId });
+      .insert({ trip_stop_id: currentStopId, drink_name: name ?? null });
     if (drinkError) {
       setError(drinkError.message);
       return;

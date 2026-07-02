@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import { publishTripAsCrawl } from '@/lib/crawls';
 import { errorMessage } from '@/lib/errors';
 import { formatDistance, formatDuration } from '@/lib/format';
+import { fetchMyStats, type MyStats } from '@/lib/stats';
 import { supabase } from '@/lib/supabase';
 
 type TripSummary = {
@@ -28,6 +29,7 @@ export default function HistoryScreen() {
   const [trips, setTrips] = useState<TripSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [myDisplayName, setMyDisplayName] = useState<string | null>(null);
+  const [stats, setStats] = useState<MyStats | null>(null);
 
   const [action, setAction] = useState<PendingAction | null>(null);
   const [caption, setCaption] = useState('');
@@ -63,11 +65,19 @@ export default function HistoryScreen() {
       .then(({ data }) => setMyDisplayName(data?.display_name ?? null));
   }, [session]);
 
+  const loadStats = useCallback(() => {
+    if (!session) return;
+    fetchMyStats(session.user.id)
+      .then(setStats)
+      .catch(() => {});
+  }, [session]);
+
   useFocusEffect(
     useCallback(() => {
       loadTrips();
       loadMyProfile();
-    }, [loadTrips, loadMyProfile])
+      loadStats();
+    }, [loadTrips, loadMyProfile, loadStats])
   );
 
   function openNameModal() {
@@ -137,6 +147,34 @@ export default function HistoryScreen() {
       <Pressable onPress={() => supabase.auth.signOut()}>
         <ThemedText style={styles.signOut}>Sign out</ThemedText>
       </Pressable>
+
+      {stats && (
+        <View style={styles.statsCard}>
+          <View style={styles.statItem}>
+            <ThemedText type="defaultSemiBold">{stats.tripCount}</ThemedText>
+            <ThemedText style={styles.statLabel}>Crawls</ThemedText>
+          </View>
+          <View style={styles.statItem}>
+            <ThemedText type="defaultSemiBold">{stats.totalStops}</ThemedText>
+            <ThemedText style={styles.statLabel}>Bars visited</ThemedText>
+          </View>
+          <View style={styles.statItem}>
+            <ThemedText type="defaultSemiBold">{stats.totalDrinks}</ThemedText>
+            <ThemedText style={styles.statLabel}>Drinks</ThemedText>
+          </View>
+          <View style={styles.statItem}>
+            <ThemedText type="defaultSemiBold">
+              {stats.totalDistanceM ? formatDistance(stats.totalDistanceM) : '0 m'}
+            </ThemedText>
+            <ThemedText style={styles.statLabel}>Walked</ThemedText>
+          </View>
+          <View style={styles.statItem}>
+            <ThemedText type="defaultSemiBold">{stats.crawlsPublished}</ThemedText>
+            <ThemedText style={styles.statLabel}>Published</ThemedText>
+          </View>
+        </View>
+      )}
+
       <FlatList
         data={trips}
         keyExtractor={(t) => t.id}
@@ -260,6 +298,18 @@ const styles = StyleSheet.create({
   profileText: { opacity: 0.8 },
   editName: { color: '#0a84ff' },
   signOut: { color: '#ff453a', marginBottom: 16 },
+  statsCard: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#3a3a3c',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+  },
+  statItem: { alignItems: 'center', minWidth: 60 },
+  statLabel: { fontSize: 11, opacity: 0.7, marginTop: 2 },
   list: { gap: 12 },
   card: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#3a3a3c', gap: 4 },
   meta: { opacity: 0.7 },
