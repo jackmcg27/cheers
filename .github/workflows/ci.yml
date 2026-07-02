@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  quality:
+    name: Typecheck, lint, test, bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npx eslint .
+
+      - name: Test with coverage
+        run: npm run test:coverage -- --ci
+
+      - name: Add coverage summary to job summary
+        if: always()
+        run: |
+          echo "## Test coverage (lib/)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          npx jest --watchAll=false --coverage --coverageReporters=text-summary --silent >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
+
+      - name: Bundle check (catches Metro/native issues tsc and jest can't)
+        run: |
+          npx expo export --platform ios --output-dir /tmp/ci-bundle-check
+        env:
+          # Placeholder values — lib/supabase.ts and lib/places.ts throw at import time if these
+          # are unset, but bundling never actually calls Supabase/Google, so fakes are fine here.
+          EXPO_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder
+          EXPO_PUBLIC_GOOGLE_PLACES_API_KEY: placeholder-key

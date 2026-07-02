@@ -1,5 +1,7 @@
 # Cheers
 
+[![CI](https://github.com/jackmcg27/cheers/actions/workflows/ci.yml/badge.svg)](https://github.com/jackmcg27/cheers/actions/workflows/ci.yml)
+
 "Strava for bar crawls" — a compass points you to a bar (revealed or kept a surprise), you log
 drinks and move to the next stop, and the finished route becomes a trip you can share. Follow
 friends, browse crawls other people have published, or build and publish your own so others can
@@ -51,12 +53,16 @@ mode that works in a plain laptop browser.
 ## Tests
 
 ```bash
-npm run test:ci
+npm run test:ci         # run once and exit
+npm run test:coverage   # once, with a coverage report
 ```
 
 Unit tests cover the `lib/` data/logic layer (bearing math, formatting, error handling, Google
 Places calls, Supabase-backed crawl/feed logic). See the **Testing** section in
-[`docs/architecture.md`](docs/architecture.md) for what's covered and how to add more.
+[`docs/architecture.md`](docs/architecture.md) for what's covered, current coverage numbers, and
+how to add more. Every push to `main` and every PR runs typecheck, lint, tests + coverage, and a
+bundle sanity check via GitHub Actions (`.github/workflows/ci.yml`) — coverage shows up in the
+run's job summary and as a downloadable artifact.
 
 ## Project layout
 

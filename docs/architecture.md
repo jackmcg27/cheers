@@ -78,12 +78,16 @@ RLS policies are **additive** — Postgres OR's together every permissive policy
 ## Testing
 
 ```bash
-npm run test:ci    # run once and exit (CI, pre-push checks)
-npm test           # watch mode
+npm run test:ci         # run once and exit (CI, pre-push checks)
+npm test                # watch mode
+npm run test:coverage   # once, with a coverage report
 ```
 
 Tests live next to what they test, in `lib/__tests__/`. Coverage is deliberately scoped to
-what's cheap and high-value to test in isolation, not the whole app:
+what's cheap and high-value to test in isolation, not the whole app — see the "Not covered"
+note below. As of this writing that's ~89% statements / ~79% branches on the files it does
+cover; `package.json`'s `jest.coverageThreshold` fails the build if it drops meaningfully below
+that (80% statements / 70% branches / 85% functions / 90% lines).
 
 - `bearing.test.ts`, `format.test.ts`, `errors.test.ts` — pure functions, no mocking.
 - `places.test.ts` — mocks `global.fetch`; covers request shape, response mapping, missing-API-key
@@ -104,6 +108,14 @@ freeform vs. crawl-route `nextBar` branching) is the highest-value next target.
 When you add a new `lib/*.ts` file with real logic (not just types), add a matching
 `lib/__tests__/*.test.ts` following the patterns above — copy whichever existing test file is
 closest to what you're testing rather than starting from scratch.
+
+### CI
+
+`.github/workflows/ci.yml` runs on every push to `main` and every PR: typecheck, lint, tests
+with coverage (gated by the threshold above, and uploaded as a downloadable artifact + printed
+to the run's job summary), and an `expo export --platform ios` bundle check against placeholder
+env values (catches Metro/native-dependency issues that `tsc`/`jest` alone can't — this project
+has hit that class of bug more than once, see the Gotchas below).
 
 ## Gotchas hit while building this (read before you lose an hour to them)
 
