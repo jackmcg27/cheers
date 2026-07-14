@@ -49,7 +49,9 @@ The Compass screen (`app/(tabs)/index.tsx`) is the one screen that reads live GP
 
 ## `components/`
 
-- `CompassArrow.tsx`, `BarRevealCard.tsx`, `DrinkCounter.tsx` — Compass-screen specific.
+- `BottleCompass.tsx`, `BarRevealCard.tsx`, `DrinkCounter.tsx` — Compass-screen specific.
+  `BottleCompass.tsx` is a hand-drawn rotating beer bottle (plain `View`s, no SVG/native deps)
+  pointing at the target bar — same rotation math the old triangle arrow used.
 - `MockLocationControls.tsx` — dev-only widget, only rendered when `EXPO_PUBLIC_MOCK_LOCATION` is on. See `docs/local-dev-without-a-phone.md`.
 - `ThemedText.tsx`, `ThemedView.tsx`, `ui/IconSymbol.tsx`, `HapticTab.tsx`, `ui/TabBarBackground.tsx` — theme-aware primitives from the original Expo template, reused everywhere.
 

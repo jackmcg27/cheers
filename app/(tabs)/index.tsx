@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BarRevealCard } from '@/components/BarRevealCard';
-import { CompassArrow } from '@/components/CompassArrow';
+import { BottleCompass } from '@/components/BottleCompass';
 import { DrinkCounter } from '@/components/DrinkCounter';
 import { MockLocationControls } from '@/components/MockLocationControls';
 import { ThemedText } from '@/components/ThemedText';
@@ -61,11 +61,18 @@ export default function CompassScreen() {
         { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 76 },
       ]}>
       <View style={styles.header}>
-        <ThemedText type="title">Cheers</ThemedText>
+        <ThemedText type="title" style={styles.title}>
+          🍺 Cheers
+        </ThemedText>
         <View style={styles.revealRow}>
-          <ThemedText>Surprise Me</ThemedText>
-          <Switch value={revealMode} onValueChange={setRevealMode} />
-          <ThemedText>Reveal</ThemedText>
+          <ThemedText style={styles.revealLabel}>Surprise Me</ThemedText>
+          <Switch
+            value={revealMode}
+            onValueChange={setRevealMode}
+            trackColor={{ false: '#3a3a3c', true: '#f2c14e' }}
+            thumbColor="#fff"
+          />
+          <ThemedText style={styles.revealLabel}>Reveal</ThemedText>
         </View>
       </View>
 
@@ -86,7 +93,7 @@ export default function CompassScreen() {
           <Pressable
             style={styles.secondaryButton}
             onPress={() => router.push('/(tabs)/crawls/index')}>
-            <ThemedText style={styles.primaryButtonText}>Load a Crawl</ThemedText>
+            <ThemedText style={styles.lightButtonText}>Load a Crawl</ThemedText>
           </Pressable>
           {!coords && <ActivityIndicator style={{ marginTop: 12 }} />}
         </View>
@@ -106,7 +113,7 @@ export default function CompassScreen() {
               Stop {routeIndex + 1} of {routeStops.length}
             </ThemedText>
           )}
-          <CompassArrow rotationDegrees={rotation} size={190} />
+          <BottleCompass rotationDegrees={rotation} size={190} />
           <ThemedText type="subtitle" style={styles.distance}>
             {distance !== null ? formatDistance(distance) : '—'}
           </ThemedText>
@@ -134,10 +141,10 @@ export default function CompassScreen() {
           <DrinkCounter count={drinkCount} onAdd={addDrink} />
           <View style={styles.row}>
             <Pressable style={styles.secondaryButton} onPress={() => nextBar(coords)}>
-              <ThemedText style={styles.primaryButtonText}>Next Bar</ThemedText>
+              <ThemedText style={styles.lightButtonText}>Next Bar</ThemedText>
             </Pressable>
             <Pressable style={styles.endButton} onPress={endCrawl}>
-              <ThemedText style={styles.primaryButtonText}>End Crawl</ThemedText>
+              <ThemedText style={styles.lightButtonText}>End Crawl</ThemedText>
             </Pressable>
           </View>
         </View>
@@ -148,27 +155,35 @@ export default function CompassScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20, gap: 10 },
-  header: { gap: 8 },
+  header: { gap: 10 },
+  title: { letterSpacing: 0.5 },
   revealRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  revealLabel: { fontSize: 13, opacity: 0.75 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
   arrivedCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   hint: { opacity: 0.7 },
-  distance: { fontSize: 22 },
+  distance: { fontSize: 24, fontWeight: '700', color: '#f2c14e', letterSpacing: 0.5 },
   error: { color: '#ff453a' },
   primaryButton: {
-    backgroundColor: '#0a84ff',
+    backgroundColor: '#f2c14e',
     paddingHorizontal: 24,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 14,
+    shadowColor: '#f2c14e',
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
-  buttonDim: { opacity: 0.6 },
-  primaryButtonText: { color: '#fff', fontWeight: '700', fontSize: 16, textAlign: 'center' },
+  buttonDim: { opacity: 0.5 },
+  primaryButtonText: { color: '#1c1204', fontWeight: '700', fontSize: 16, textAlign: 'center' },
+  lightButtonText: { color: '#fff', fontWeight: '700', fontSize: 16, textAlign: 'center' },
   row: { flexDirection: 'row', gap: 12 },
   secondaryButton: {
     backgroundColor: '#3a3a3c',
     paddingHorizontal: 20,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 14,
   },
-  endButton: { backgroundColor: '#ff453a', paddingHorizontal: 20, paddingVertical: 14, borderRadius: 12 },
+  endButton: { backgroundColor: '#ff453a', paddingHorizontal: 20, paddingVertical: 14, borderRadius: 14 },
 });

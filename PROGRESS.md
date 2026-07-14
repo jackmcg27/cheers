@@ -9,12 +9,14 @@ you finish (or start) something.
 > Leave the "Known gaps / tech debt" section honest — it's more useful than a checklist that
 > only ever says "done."
 
-Last updated: 2026-07-04.
+Last updated: 2026-07-14.
 
 ## Phase 1 — Core loop ✅ done
 
 - [x] Auth (Supabase email/password + magic link)
-- [x] Compass screen: live GPS + device heading, arrow points at target bar
+- [x] Compass screen: live GPS + device heading, rotating beer-bottle pointer
+      (`components/BottleCompass.tsx`, replaces the earlier plain triangle arrow) points at
+      target bar, with a warm amber/gold pub palette on the primary buttons and dial
 - [x] Reveal Mode toggle ("Surprise Me" vs. show name/address/photo)
 - [x] Nearest-bar search via Google Places API (New)
 - [x] Manual "I'm here" arrival confirm (+ auto-hint when close)
