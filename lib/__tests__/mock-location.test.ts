@@ -1,6 +1,14 @@
 // mock-location.ts reads EXPO_PUBLIC_MOCK_LAT/LNG at module-load time and keeps state at module
 // scope, so each test resets the module registry to get an isolated, fresh store.
 
+import { createElement } from 'react';
+import { act, create } from 'react-test-renderer';
+
+// Imported statically (not via the `load()` helper below) so it shares the same React module
+// instance as react-test-renderer — a version re-required after jest.resetModules() would be a
+// second, mismatched React copy and trip an "Invalid hook call" error.
+import { getMockState as getMockStateDirect, setMockCoords as setMockCoordsDirect, useMockLocation } from '../mock-location';
+
 describe('mock-location', () => {
   const originalLat = process.env.EXPO_PUBLIC_MOCK_LAT;
   const originalLng = process.env.EXPO_PUBLIC_MOCK_LNG;
@@ -68,5 +76,31 @@ describe('mock-location', () => {
 
     resetMockCoords();
     expect(getMockState()).toMatchObject({ latitude: 5, longitude: 6 });
+  });
+
+  it('useMockLocation re-renders on state changes and unsubscribes on unmount', () => {
+    let latest: ReturnType<typeof useMockLocation> | undefined;
+    function Harness() {
+      latest = useMockLocation();
+      return null;
+    }
+
+    let root: ReturnType<typeof create>;
+    act(() => {
+      root = create(createElement(Harness));
+    });
+    expect(latest).toEqual(getMockStateDirect());
+
+    act(() => {
+      setMockCoordsDirect(9, 10);
+    });
+    expect(latest).toMatchObject({ latitude: 9, longitude: 10 });
+
+    act(() => {
+      root.unmount();
+    });
+    // Unmounting calls the subscribe cleanup; a further state change must not throw
+    // even though no listeners remain.
+    expect(() => setMockCoordsDirect(11, 12)).not.toThrow();
   });
 });

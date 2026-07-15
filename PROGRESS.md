@@ -13,10 +13,10 @@ Last updated: 2026-07-14 (drink-name breakdown, pace-nudge banner, duplicate-cra
 guard, Feed-card unfollow, places.ts test coverage, delete-trip/delete-post, a fix for a
 pre-existing `feed_posts` RLS infinite-recursion bug (`0006`), per-trip companions /
 drink-tracking-for-others (`0007`), working magic-link/signup-confirmation deep links, a
-forgot/reset-password flow, per-companion drink breakdown on History cards, Feed pagination, and
+forgot/reset-password flow, per-companion drink breakdown on History cards, Feed pagination,
 tappable History/Feed cards opening a full trip detail view with a companion breakdown (`0008`),
-and a followers list with a "Follow back" button all added in this session; migrations
-`0007`/`0008` have been applied to the Supabase project).
+a followers list with a "Follow back" button, and 100% line/function test coverage across `lib/`
+all added in this session; migrations `0007`/`0008` have been applied to the Supabase project).
 
 ## Phase 1 — Core loop ✅ done
 
@@ -152,6 +152,15 @@ and a followers list with a "Follow back" button all added in this session; migr
       and now `tripId` mapping; `trip-detail.test.ts` covers `fetchTripDetail`'s stop sorting,
       per-stop/per-companion drink summaries (including a companion with zero drinks still
       appearing), and preferring an app-user's display name over a guest name
+- [x] 100% line and function coverage on every file in `lib/` — closed the remaining gaps in
+      `trip-context.test.tsx` (`startCrawlWithRoute`'s insert failure, `addDrink`'s insert-error
+      path, `nextBar`'s freeform catch-on-throw, `endCrawl`'s multi-stop distance loop, which the
+      original single-stop test never exercised) and added `mock-location.test.ts` coverage for
+      the `useMockLocation`/`subscribe` hook via `react-test-renderer` (had to import it via a
+      plain static `import`, not the file's `jest.resetModules()`-based `load()` helper, or the
+      hook gets a mismatched second copy of `react` and throws "Invalid hook call"). Branch
+      coverage (~81%) is intentionally short of 100% — the remaining gaps are error-object-shape
+      permutations that'd need near-duplicate test cases for no real safety gain
 - [ ] Any screen/component tests (needs `@testing-library/react-native` + native-module mocks,
       not set up yet)
 

@@ -157,6 +157,18 @@ describe('startCrawlWithRoute', () => {
     expect(getCtx().phase).toBe('idle');
     expect(mockFrom).not.toHaveBeenCalled();
   });
+
+  it('surfaces an error and returns to idle when trip creation fails', async () => {
+    const getCtx = await renderTrip();
+    mockFrom.mockImplementation(() => queryResult({ data: null, error: { message: 'insert failed' } }));
+
+    await act(async () => {
+      await getCtx().startCrawlWithRoute({ id: 'crawl-1', stops: [bar, bar2] });
+    });
+
+    expect(getCtx().error).toBe('insert failed');
+    expect(getCtx().phase).toBe('idle');
+  });
 });
 
 describe('confirmArrival', () => {
@@ -245,6 +257,20 @@ describe('addDrink', () => {
       companion_id: null,
     });
     expect(getCtx().drinkCount).toBe(1);
+  });
+
+  it('surfaces the error and does not increment the count when the insert fails', async () => {
+    const getCtx = await renderTrip();
+    await arriveAtBar(getCtx);
+
+    mockFrom.mockImplementation(() => queryResult({ error: { message: 'insert failed' } }));
+
+    await act(async () => {
+      await getCtx().addDrink('IPA');
+    });
+
+    expect(getCtx().error).toBe('insert failed');
+    expect(getCtx().drinkCount).toBe(0);
   });
 
   it('does nothing without a current stop', async () => {
@@ -598,6 +624,22 @@ describe('nextBar', () => {
     expect(getCtx().error).toBe('No more nearby bars — end the crawl to save your trip.');
   });
 
+  it('freeform mode: surfaces an error and returns to arrived when the request throws', async () => {
+    const getCtx = await renderTrip();
+    await arriveAtBar(getCtx);
+
+    mockFrom.mockImplementation(() => {
+      throw new Error('network down');
+    });
+
+    await act(async () => {
+      await getCtx().nextBar({ latitude: 0, longitude: 0 });
+    });
+
+    expect(getCtx().phase).toBe('arrived');
+    expect(getCtx().error).toBe('network down');
+  });
+
   it('route mode: advances to the next stop in the route', async () => {
     const getCtx = await renderTrip();
     mockFrom.mockImplementation(() =>
@@ -703,6 +745,56 @@ describe('endCrawl', () => {
     const update = tripUpdateCalls[0] as { total_distance_m: number; total_duration_s: number };
     expect(update.total_distance_m).toBe(0);
     expect(update.total_duration_s).toBeGreaterThanOrEqual(0);
+  });
+
+  it('accumulates distance across multiple stops', async () => {
+    const getCtx = await renderTrip();
+    mockFindNearestBar.mockResolvedValue(bar);
+    mockFrom.mockImplementation(() =>
+      queryResult({ data: { id: 'trip-1', started_at: '2026-01-01T00:00:00Z' }, error: null })
+    );
+    await act(async () => {
+      await getCtx().startCrawl({ latitude: 0, longitude: 0 });
+    });
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'bars') return queryResult({ data: { id: 'bar-row-1' }, error: null });
+      if (table === 'trip_stops') return queryResult({ data: { id: 'stop-1' }, error: null });
+      throw new Error(`unexpected table: ${table}`);
+    });
+    await act(async () => {
+      await getCtx().confirmArrival();
+    });
+
+    const tripUpdateCalls: unknown[] = [];
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'trip_stops') {
+        return queryResult({
+          data: [
+            { stop_order: 0, bars: { lat: 1, lng: 2 } },
+            { stop_order: 1, bars: { lat: 1.01, lng: 2.01 } },
+          ],
+          error: null,
+        });
+      }
+      if (table === 'trips') {
+        const q = queryResult({ error: null });
+        q.update = jest.fn((values: unknown) => {
+          tripUpdateCalls.push(values);
+          return q;
+        });
+        return q;
+      }
+      throw new Error(`unexpected table: ${table}`);
+    });
+
+    await act(async () => {
+      await getCtx().endCrawl();
+    });
+
+    expect(tripUpdateCalls).toHaveLength(1);
+    const update = tripUpdateCalls[0] as { total_distance_m: number };
+    expect(update.total_distance_m).toBeGreaterThan(0);
   });
 
   it('surfaces an error without resetting the trip when the update fails', async () => {

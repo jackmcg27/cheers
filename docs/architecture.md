@@ -135,9 +135,11 @@ npm run test:coverage   # once, with a coverage report
 
 Tests live next to what they test, in `lib/__tests__/`. Coverage is deliberately scoped to
 what's cheap and high-value to test in isolation, not the whole app — see the "Not covered"
-note below. As of this writing that's ~90% statements / ~78% branches on the files it does
-cover; `package.json`'s `jest.coverageThreshold` fails the build if it drops meaningfully below
-that (80% statements / 70% branches / 85% functions / 90% lines).
+note below. As of this writing every `lib/` file is at 100% line and function coverage (~95%
+statements / ~81% branches — the remaining branch gaps are early-return/error-object shapes
+that would need near-duplicate test cases to close, not worth it for the marginal safety);
+`package.json`'s `jest.coverageThreshold` fails the build if it drops meaningfully below 80%
+statements / 70% branches / 85% functions / 90% lines.
 
 - `bearing.test.ts`, `format.test.ts`, `errors.test.ts`, `deep-link.test.ts` — pure functions, no mocking.
 - `places.test.ts` — mocks `global.fetch`; covers request shape, response mapping, missing-API-key
@@ -167,6 +169,17 @@ that (80% statements / 70% branches / 85% functions / 90% lines).
   per-companion drink summaries, a companion appearing with `drinkCount: 0` when they logged
   nothing, preferring a linked app-user's `display_name` over a `guest_name`, and throwing when
   the trip isn't found or not visible under RLS.
+- `trip-context.test.tsx` also covers the error/catch branches that a first pass tends to skip:
+  `startCrawlWithRoute`'s insert failure, `addDrink`'s insert-error path (distinct from a thrown
+  exception), `nextBar`'s freeform-mode catch when the request itself throws, and `endCrawl`'s
+  distance-accumulation loop across more than one stop (the original test only had a single stop,
+  so the loop body never ran).
+- `mock-location.test.ts` covers `useMockLocation`/`subscribe` (the `useSyncExternalStore` hook)
+  via `react-test-renderer`, in addition to the plain-function tests for the rest of the module.
+  It imports the hook and setters via a normal static `import`, not the file's `load()` helper —
+  `load()` calls `jest.resetModules()` for state isolation, which would hand the hook a second,
+  freshly-required copy of the `react` module that doesn't match the one `react-test-renderer`
+  already has cached, tripping an "Invalid hook call" error.
 
 **Not covered**, intentionally — these need real component-rendering infra
 (`@testing-library/react-native` + native-module mocks for `expo-location`/`expo-router`) that
