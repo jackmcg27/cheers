@@ -246,6 +246,7 @@ describe('createCrawl', () => {
 describe('publishTripAsCrawl', () => {
   it('copies the trip stop order into a new crawl and links the trip back to it', async () => {
     const calls: Record<string, unknown[]> = {};
+    let tripsCallCount = 0;
 
     mockFrom.mockImplementation((table: string) => {
       calls[table] = calls[table] ?? [];
@@ -270,6 +271,11 @@ describe('publishTripAsCrawl', () => {
         return q;
       }
       if (table === 'trips') {
+        tripsCallCount += 1;
+        if (tripsCallCount === 1) {
+          // the not-already-published guard check
+          return queryResult({ data: { crawl_id: null }, error: null });
+        }
         const q = queryResult({ error: null });
         q.update = jest.fn((values: unknown) => {
           calls[table].push(values);
@@ -296,8 +302,26 @@ describe('publishTripAsCrawl', () => {
     expect(calls['trips']).toEqual([{ crawl_id: 'crawl-9' }]);
   });
 
+  it('refuses to publish a trip that has already been published', async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'trips') return queryResult({ data: { crawl_id: 'existing-crawl' }, error: null });
+      throw new Error(`unexpected table: ${table}`);
+    });
+
+    await expect(
+      publishTripAsCrawl({
+        tripId: 'trip-1',
+        creatorId: 'u1',
+        name: 'Again',
+        description: null,
+        isPublic: false,
+      })
+    ).rejects.toThrow('already been published');
+  });
+
   it('refuses to publish a trip with no stops', async () => {
     mockFrom.mockImplementation((table: string) => {
+      if (table === 'trips') return queryResult({ data: { crawl_id: null }, error: null });
       if (table === 'trip_stops') return queryResult({ data: [], error: null });
       throw new Error(`unexpected table: ${table}`);
     });

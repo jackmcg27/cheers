@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
-import { FlatList, Modal, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { Alert, FlatList, Modal, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/ThemedText';
@@ -8,7 +8,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { useAuth } from '@/lib/auth-context';
 import { publishTripAsCrawl } from '@/lib/crawls';
 import { errorMessage } from '@/lib/errors';
-import { formatDistance, formatDuration } from '@/lib/format';
+import { formatDistance, formatDuration, summarizeDrinkNames, summarizeDrinksByCompanion } from '@/lib/format';
 import { fetchMyStats, type MyStats } from '@/lib/stats';
 import { supabase } from '@/lib/supabase';
 
@@ -18,7 +18,13 @@ type TripSummary = {
   ended_at: string | null;
   total_distance_m: number | null;
   total_duration_s: number | null;
-  trip_stops: { drink_logs: { count: number }[] }[];
+  crawl_id: string | null;
+  trip_stops: { drink_logs: { drink_name: string | null; companion_id: string | null }[] }[];
+  trip_companions: {
+    id: string;
+    guest_name: string | null;
+    profiles: { display_name: string | null } | null;
+  }[];
 };
 
 type PendingAction = { type: 'post' | 'crawl'; tripId: string } | { type: 'name' };
@@ -45,7 +51,9 @@ export default function HistoryScreen() {
     setLoading(true);
     supabase
       .from('trips')
-      .select('id, started_at, ended_at, total_distance_m, total_duration_s, trip_stops(drink_logs(count))')
+      .select(
+        'id, started_at, ended_at, total_distance_m, total_duration_s, crawl_id, trip_stops(drink_logs(drink_name, companion_id)), trip_companions(id, guest_name, profiles(display_name))'
+      )
       .eq('user_id', session.user.id)
       .not('ended_at', 'is', null)
       .order('started_at', { ascending: false })
@@ -79,6 +87,26 @@ export default function HistoryScreen() {
       loadStats();
     }, [loadTrips, loadMyProfile, loadStats])
   );
+
+  function confirmDeleteTrip(tripId: string) {
+    Alert.alert(
+      'Delete trip?',
+      "This also removes it from the feed if you posted it. Can't be undone.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => deleteTrip(tripId) },
+      ]
+    );
+  }
+
+  async function deleteTrip(tripId: string) {
+    const { error } = await supabase.from('trips').delete().eq('id', tripId);
+    if (error) {
+      Alert.alert('Failed to delete trip', errorMessage(error));
+      return;
+    }
+    setTrips((prev) => prev.filter((t) => t.id !== tripId));
+  }
 
   function openNameModal() {
     setNameDraft(myDisplayName ?? '');
@@ -114,6 +142,7 @@ export default function HistoryScreen() {
           description: crawlDescription.trim() || null,
           isPublic: crawlPublic,
         });
+        loadTrips();
       } else {
         if (!nameDraft.trim()) throw new Error('Display name can\'t be empty.');
         const { error } = await supabase
@@ -132,10 +161,7 @@ export default function HistoryScreen() {
   }
 
   return (
-    <ThemedView style={[styles.container, { paddingTop: insets.top + 16 }]}>
-      <ThemedText type="title" style={styles.title}>
-        Trip History
-      </ThemedText>
+    <ThemedView style={[styles.container, { paddingTop: 16 }]}>
       <View style={styles.profileRow}>
         <ThemedText style={styles.profileText}>
           {myDisplayName ? `Signed in as ${myDisplayName}` : 'No display name set'}
@@ -183,31 +209,70 @@ export default function HistoryScreen() {
         ListEmptyComponent={
           !loading ? <ThemedText style={styles.empty}>No completed crawls yet.</ThemedText> : null
         }
-        renderItem={({ item }) => (
-          <ThemedView style={styles.card}>
-            <ThemedText type="defaultSemiBold">
-              {new Date(item.started_at).toLocaleDateString(undefined, {
-                weekday: 'short',
-                month: 'short',
-                day: 'numeric',
-              })}
-            </ThemedText>
-            <ThemedText style={styles.meta}>
-              {item.trip_stops?.length ?? 0} stops · 🍻{' '}
-              {item.trip_stops?.reduce((sum, s) => sum + (s.drink_logs?.[0]?.count ?? 0), 0) ?? 0} ·{' '}
-              {formatDuration(item.total_duration_s)} ·{' '}
-              {item.total_distance_m ? formatDistance(item.total_distance_m) : '—'}
-            </ThemedText>
-            <View style={styles.cardActions}>
-              <Pressable onPress={() => setAction({ type: 'post', tripId: item.id })}>
-                <ThemedText style={styles.cardAction}>Post to Feed</ThemedText>
-              </Pressable>
-              <Pressable onPress={() => setAction({ type: 'crawl', tripId: item.id })}>
-                <ThemedText style={styles.cardAction}>Publish as Crawl</ThemedText>
-              </Pressable>
-            </View>
-          </ThemedView>
-        )}
+        renderItem={({ item }) => {
+          const logs = item.trip_stops?.flatMap((s) => s.drink_logs) ?? [];
+          const companions = (item.trip_companions ?? []).map((c) => ({
+            id: c.id,
+            label: c.profiles?.display_name ?? c.guest_name ?? 'Someone',
+          }));
+          const drinkSummary = summarizeDrinkNames(logs.map((d) => d.drink_name));
+          const byCompanion = companions.length > 0 ? summarizeDrinksByCompanion(logs, companions) : [];
+          return (
+            <Pressable
+              style={styles.card}
+              onPress={() =>
+                router.push({ pathname: '/(tabs)/history/[id]', params: { id: item.id } })
+              }>
+              <ThemedText type="defaultSemiBold">
+                {new Date(item.started_at).toLocaleDateString(undefined, {
+                  weekday: 'short',
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </ThemedText>
+              <ThemedText style={styles.meta}>
+                {item.trip_stops?.length ?? 0} stops · 🍻{' '}
+                {item.trip_stops?.reduce((sum, s) => sum + (s.drink_logs?.length ?? 0), 0) ?? 0} ·{' '}
+                {formatDuration(item.total_duration_s)} ·{' '}
+                {item.total_distance_m ? formatDistance(item.total_distance_m) : '—'}
+              </ThemedText>
+              {byCompanion.length > 0 ? (
+                <View style={styles.companionBreakdown}>
+                  {byCompanion.map((c) => (
+                    <ThemedText key={c.label} style={styles.drinkNames}>
+                      <ThemedText type="defaultSemiBold" style={styles.drinkNames}>
+                        {c.label}:{' '}
+                      </ThemedText>
+                      {c.summary}
+                    </ThemedText>
+                  ))}
+                </View>
+              ) : (
+                drinkSummary && <ThemedText style={styles.drinkNames}>{drinkSummary}</ThemedText>
+              )}
+              <View style={styles.cardActions}>
+                <Pressable onPress={() => setAction({ type: 'post', tripId: item.id })}>
+                  <ThemedText style={styles.cardAction}>Post to Feed</ThemedText>
+                </Pressable>
+                {item.crawl_id ? (
+                  <Pressable
+                    onPress={() =>
+                      router.push({ pathname: '/(tabs)/crawls/[id]', params: { id: item.crawl_id! } })
+                    }>
+                    <ThemedText style={styles.cardAction}>View Crawl</ThemedText>
+                  </Pressable>
+                ) : (
+                  <Pressable onPress={() => setAction({ type: 'crawl', tripId: item.id })}>
+                    <ThemedText style={styles.cardAction}>Publish as Crawl</ThemedText>
+                  </Pressable>
+                )}
+                <Pressable onPress={() => confirmDeleteTrip(item.id)}>
+                  <ThemedText style={styles.deleteAction}>Delete</ThemedText>
+                </Pressable>
+              </View>
+            </Pressable>
+          );
+        }}
       />
 
       <Modal visible={action !== null} transparent animationType="fade" onRequestClose={closeModal}>
@@ -288,7 +353,6 @@ export default function HistoryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20 },
-  title: { marginBottom: 4 },
   profileRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -313,9 +377,12 @@ const styles = StyleSheet.create({
   list: { gap: 12 },
   card: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#3a3a3c', gap: 4 },
   meta: { opacity: 0.7 },
+  drinkNames: { opacity: 0.85, fontSize: 13, marginTop: 2 },
+  companionBreakdown: { marginTop: 2, gap: 2 },
   empty: { opacity: 0.6, textAlign: 'center', marginTop: 40 },
   cardActions: { flexDirection: 'row', gap: 20, marginTop: 8 },
   cardAction: { color: '#0a84ff', fontSize: 13 },
+  deleteAction: { color: '#ff453a', fontSize: 13 },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',

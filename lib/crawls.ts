@@ -192,6 +192,14 @@ export async function publishTripAsCrawl(options: {
 }): Promise<string> {
   const { tripId, creatorId, name, description, isPublic } = options;
 
+  const { data: trip, error: tripError } = await supabase
+    .from('trips')
+    .select('crawl_id')
+    .eq('id', tripId)
+    .single();
+  if (tripError) throw tripError;
+  if (trip?.crawl_id) throw new Error('This trip has already been published as a crawl.');
+
   const { data: tripStops, error: stopsError } = await supabase
     .from('trip_stops')
     .select('stop_order, bar_id')

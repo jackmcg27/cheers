@@ -39,6 +39,13 @@ describe('places', () => {
       const places = loadPlacesWithKey(undefined);
       expect(places.placePhotoUrl('places/abc/photos/xyz')).toBeNull();
     });
+
+    it('searchBarsByText rejects with a message pointing at the missing env var', async () => {
+      const places = loadPlacesWithKey(undefined);
+      await expect(places.searchBarsByText('dive bar')).rejects.toThrow(
+        /EXPO_PUBLIC_GOOGLE_PLACES_API_KEY/
+      );
+    });
   });
 
   describe('with an API key configured', () => {
@@ -121,6 +128,12 @@ describe('places', () => {
       mockFetchOnce({ error: { message: 'no billing' } }, false, 403);
       const places = loadPlacesWithKey('test-key');
       await expect(places.findNearbyBars({ latitude: 1, longitude: 2 })).rejects.toThrow(/403/);
+    });
+
+    it('searchBarsByText throws including the status and body text on a non-ok response', async () => {
+      mockFetchOnce({ error: { message: 'no billing' } }, false, 403);
+      const places = loadPlacesWithKey('test-key');
+      await expect(places.searchBarsByText('dive bar')).rejects.toThrow(/403/);
     });
 
     it('searchBarsByText short-circuits on a blank query without calling fetch', async () => {

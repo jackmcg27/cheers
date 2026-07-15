@@ -4,6 +4,7 @@ jest.mock('../supabase', () => ({ supabase: { from: jest.fn() } }));
 import { supabase } from '../supabase';
 import {
   addComment,
+  deletePost,
   fetchComments,
   fetchFeed,
   fetchFollowingIds,
@@ -11,6 +12,7 @@ import {
   searchProfiles,
   toggleLike,
   unfollow,
+  FEED_PAGE_SIZE,
 } from '../feed';
 
 /** A stub PostgREST query builder: every chain method returns itself, and it resolves
@@ -21,6 +23,7 @@ function queryResult(response: unknown) {
     eq: jest.fn(() => obj),
     neq: jest.fn(() => obj),
     order: jest.fn(() => obj),
+    range: jest.fn(() => obj),
     ilike: jest.fn(() => obj),
     limit: jest.fn(() => obj),
     insert: jest.fn(() => obj),
@@ -45,6 +48,7 @@ describe('fetchFeed', () => {
         data: [
           {
             id: 'post-1',
+            trip_id: 'trip-1',
             caption: 'Great night',
             created_at: '2026-01-01T00:00:00Z',
             user_id: 'author-1',
@@ -54,8 +58,16 @@ describe('fetchFeed', () => {
               total_distance_m: 1500,
               // deliberately out of order, and one stop with no bar / no drinks
               trip_stops: [
-                { stop_order: 1, bars: { name: 'Bar B' }, drink_logs: [{ count: 2 }] },
-                { stop_order: 0, bars: { name: 'Bar A' }, drink_logs: [{ count: 3 }] },
+                {
+                  stop_order: 1,
+                  bars: { name: 'Bar B' },
+                  drink_logs: [{ drink_name: 'Stout' }, { drink_name: null }],
+                },
+                {
+                  stop_order: 0,
+                  bars: { name: 'Bar A' },
+                  drink_logs: [{ drink_name: 'IPA' }, { drink_name: 'IPA' }, { drink_name: 'IPA' }],
+                },
                 { stop_order: 2, bars: null, drink_logs: [] },
               ],
             },
@@ -69,10 +81,12 @@ describe('fetchFeed', () => {
 
     const [post] = await fetchFeed('me');
 
+    expect(post.tripId).toBe('trip-1');
     expect(post.authorName).toBe('Jack');
     expect(post.barNames).toEqual(['Bar A', 'Bar B']); // sorted, null bar dropped
     expect(post.stopCount).toBe(3); // still counts the barless stop
     expect(post.totalDrinks).toBe(5);
+    expect(post.drinkNames).toEqual(['IPA', 'IPA', 'IPA', 'Stout']); // null names dropped
     expect(post.likeCount).toBe(2);
     expect(post.likedByMe).toBe(true);
     expect(post.commentCount).toBe(4);
@@ -84,6 +98,7 @@ describe('fetchFeed', () => {
         data: [
           {
             id: 'post-2',
+            trip_id: null,
             caption: null,
             created_at: '2026-01-01T00:00:00Z',
             user_id: 'author-2',
@@ -103,6 +118,7 @@ describe('fetchFeed', () => {
     expect(post.barNames).toEqual([]);
     expect(post.stopCount).toBe(0);
     expect(post.totalDrinks).toBe(0);
+    expect(post.drinkNames).toEqual([]);
     expect(post.likeCount).toBe(0);
     expect(post.likedByMe).toBe(false);
     expect(post.commentCount).toBe(0);
@@ -111,6 +127,17 @@ describe('fetchFeed', () => {
   it('throws the Supabase error when the query fails', async () => {
     mockFrom.mockImplementation(() => queryResult({ data: null, error: { message: 'nope' } }));
     await expect(fetchFeed('me')).rejects.toEqual({ message: 'nope' });
+  });
+
+  it('defaults to the first page, and honors a custom offset/limit', async () => {
+    const q = queryResult({ data: [], error: null });
+    mockFrom.mockImplementation(() => q);
+
+    await fetchFeed('me');
+    expect(q.range).toHaveBeenCalledWith(0, FEED_PAGE_SIZE - 1);
+
+    await fetchFeed('me', { offset: 20, limit: 10 });
+    expect(q.range).toHaveBeenCalledWith(20, 29);
   });
 });
 
@@ -140,6 +167,26 @@ describe('toggleLike', () => {
   it('throws on failure', async () => {
     mockFrom.mockImplementation(() => queryResult({ error: { message: 'denied' } }));
     await expect(toggleLike('post-1', 'user-1', false)).rejects.toEqual({ message: 'denied' });
+  });
+});
+
+describe('deletePost', () => {
+  it('deletes the post by id', async () => {
+    const q = queryResult({ error: null });
+    mockFrom.mockImplementation((table: string) => {
+      expect(table).toBe('feed_posts');
+      return q;
+    });
+
+    await deletePost('post-1');
+
+    expect(q.delete).toHaveBeenCalled();
+    expect(q.eq).toHaveBeenCalledWith('id', 'post-1');
+  });
+
+  it('throws on failure', async () => {
+    mockFrom.mockImplementation(() => queryResult({ error: { message: 'denied' } }));
+    await expect(deletePost('post-1')).rejects.toEqual({ message: 'denied' });
   });
 });
 

@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 
 export type FeedPost = {
   id: string;
+  tripId: string | null;
   caption: string | null;
   createdAt: string;
   userId: string;
@@ -11,6 +12,7 @@ export type FeedPost = {
   totalDurationS: number | null;
   totalDistanceM: number | null;
   totalDrinks: number;
+  drinkNames: string[];
   likeCount: number;
   likedByMe: boolean;
   commentCount: number;
@@ -18,6 +20,7 @@ export type FeedPost = {
 
 type FeedPostRow = {
   id: string;
+  trip_id: string | null;
   caption: string | null;
   created_at: string;
   user_id: string;
@@ -28,21 +31,29 @@ type FeedPostRow = {
     trip_stops: {
       stop_order: number;
       bars: { name: string } | null;
-      drink_logs: { count: number }[];
+      drink_logs: { drink_name: string | null }[];
     }[];
   } | null;
   post_likes: { user_id: string }[];
   post_comments: { count: number }[];
 };
 
-/** Posts visible to `currentUserId` — RLS already restricts to own + followed users' posts. */
-export async function fetchFeed(currentUserId: string): Promise<FeedPost[]> {
+export const FEED_PAGE_SIZE = 20;
+
+/** Posts visible to `currentUserId` — RLS already restricts to own + followed users' posts.
+ * Paginated newest-first; pass `offset` to fetch the next page. A returned page shorter than
+ * `FEED_PAGE_SIZE` means there's nothing more to load. */
+export async function fetchFeed(
+  currentUserId: string,
+  { offset = 0, limit = FEED_PAGE_SIZE }: { offset?: number; limit?: number } = {}
+): Promise<FeedPost[]> {
   const { data, error } = await supabase
     .from('feed_posts')
     .select(
-      'id, caption, created_at, user_id, profiles!user_id(display_name), trips(total_duration_s, total_distance_m, trip_stops(stop_order, bars(name), drink_logs(count))), post_likes(user_id), post_comments(count)'
+      'id, trip_id, caption, created_at, user_id, profiles!user_id(display_name), trips(total_duration_s, total_distance_m, trip_stops(stop_order, bars(name), drink_logs(drink_name))), post_likes(user_id), post_comments(count)'
     )
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
   if (error) throw error;
 
   return ((data as unknown as FeedPostRow[]) ?? []).map((row) => {
@@ -52,6 +63,7 @@ export async function fetchFeed(currentUserId: string): Promise<FeedPost[]> {
 
     return {
       id: row.id,
+      tripId: row.trip_id,
       caption: row.caption,
       createdAt: row.created_at,
       userId: row.user_id,
@@ -60,7 +72,8 @@ export async function fetchFeed(currentUserId: string): Promise<FeedPost[]> {
       barNames: stops.map((s) => s.bars?.name).filter((n): n is string => !!n),
       totalDurationS: row.trips?.total_duration_s ?? null,
       totalDistanceM: row.trips?.total_distance_m ?? null,
-      totalDrinks: stops.reduce((sum, s) => sum + (s.drink_logs?.[0]?.count ?? 0), 0),
+      totalDrinks: stops.reduce((sum, s) => sum + (s.drink_logs?.length ?? 0), 0),
+      drinkNames: stops.flatMap((s) => (s.drink_logs ?? []).map((d) => d.drink_name)).filter((n): n is string => !!n),
       likeCount: row.post_likes?.length ?? 0,
       likedByMe: row.post_likes?.some((l) => l.user_id === currentUserId) ?? false,
       commentCount: row.post_comments?.[0]?.count ?? 0,
@@ -80,6 +93,11 @@ export async function toggleLike(postId: string, userId: string, currentlyLiked:
     const { error } = await supabase.from('post_likes').insert({ post_id: postId, user_id: userId });
     if (error) throw error;
   }
+}
+
+export async function deletePost(postId: string) {
+  const { error } = await supabase.from('feed_posts').delete().eq('id', postId);
+  if (error) throw error;
 }
 
 export type PostComment = { id: string; body: string; createdAt: string; authorName: string | null };

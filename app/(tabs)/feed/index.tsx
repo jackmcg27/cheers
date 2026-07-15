@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
-import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useAuth } from '@/lib/auth-context';
 import { errorMessage } from '@/lib/errors';
-import { formatDistance, formatDuration } from '@/lib/format';
+import { formatDistance, formatDuration, summarizeDrinkNames } from '@/lib/format';
 import {
   addComment,
+  deletePost,
   fetchComments,
   fetchFeed,
   fetchFollowingIds,
@@ -17,6 +18,7 @@ import {
   searchProfiles,
   toggleLike,
   unfollow,
+  FEED_PAGE_SIZE,
   type FeedPost,
   type PostComment,
   type ProfileMatch,
@@ -30,6 +32,8 @@ export default function FeedScreen() {
 
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [query, setQuery] = useState('');
@@ -46,11 +50,24 @@ export default function FeedScreen() {
     fetchFeed(userId)
       .then((data) => {
         setPosts(data);
+        setHasMore(data.length === FEED_PAGE_SIZE);
         setError(null);
       })
       .catch((e) => setError(errorMessage(e, 'Failed to load feed')))
       .finally(() => setLoading(false));
   }, [userId]);
+
+  function loadMore() {
+    if (!userId || loading || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    fetchFeed(userId, { offset: posts.length })
+      .then((data) => {
+        setPosts((prev) => [...prev, ...data]);
+        setHasMore(data.length === FEED_PAGE_SIZE);
+      })
+      .catch((e) => setError(errorMessage(e, 'Failed to load more posts')))
+      .finally(() => setLoadingMore(false));
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -62,7 +79,7 @@ export default function FeedScreen() {
   useEffect(() => {
     const channel = supabase
       .channel('feed-posts-changes')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'feed_posts' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'feed_posts' }, () => {
         loadFeed();
       })
       .subscribe();
@@ -126,6 +143,23 @@ export default function FeedScreen() {
     }
   }
 
+  function confirmDeletePost(postId: string) {
+    Alert.alert('Delete post?', "This removes it from the feed. Can't be undone.", [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          setPosts((prev) => prev.filter((p) => p.id !== postId));
+          deletePost(postId).catch(() => {
+            Alert.alert('Failed to delete post');
+            loadFeed();
+          });
+        },
+      },
+    ]);
+  }
+
   async function toggleComments(postId: string) {
     if (expandedPostId === postId) {
       setExpandedPostId(null);
@@ -150,13 +184,23 @@ export default function FeedScreen() {
     );
   }
 
+  function openPost(post: FeedPost) {
+    if (!post.tripId) return;
+    router.push({
+      pathname: '/(tabs)/feed/[id]',
+      params: { id: post.tripId, authorName: post.authorName ?? '', caption: post.caption ?? '' },
+    });
+  }
+
   return (
-    <ThemedView style={[styles.root, { paddingTop: insets.top + 12 }]}>
+    <ThemedView style={[styles.root, { paddingTop: 12 }]}>
       <FlatList
         data={posts}
         keyExtractor={(p) => p.id}
         refreshing={loading}
         onRefresh={loadFeed}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.4}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 76 }]}
         ListHeaderComponent={
           <View style={styles.searchBlock}>
@@ -187,9 +231,22 @@ export default function FeedScreen() {
             </ThemedText>
           ) : null
         }
+        ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} /> : null}
         renderItem={({ item }) => (
-          <View style={styles.card}>
-            <ThemedText type="defaultSemiBold">{item.authorName ?? 'Someone'}</ThemedText>
+          <Pressable style={styles.card} onPress={() => openPost(item)}>
+            <View style={styles.authorRow}>
+              <ThemedText type="defaultSemiBold">{item.authorName ?? 'Someone'}</ThemedText>
+              {item.userId !== userId && followingIds.has(item.userId) && (
+                <Pressable onPress={() => handleToggleFollow(item.userId)}>
+                  <ThemedText style={styles.unfollowBadge}>Following ✕</ThemedText>
+                </Pressable>
+              )}
+              {item.userId === userId && (
+                <Pressable onPress={() => confirmDeletePost(item.id)}>
+                  <ThemedText style={styles.deleteBadge}>Delete</ThemedText>
+                </Pressable>
+              )}
+            </View>
             <ThemedText style={styles.meta}>
               {item.stopCount} {item.stopCount === 1 ? 'stop' : 'stops'} · 🍻 {item.totalDrinks} ·{' '}
               {formatDuration(item.totalDurationS)} ·{' '}
@@ -197,6 +254,9 @@ export default function FeedScreen() {
             </ThemedText>
             {item.barNames.length > 0 && (
               <ThemedText style={styles.barNames}>{item.barNames.join(' → ')}</ThemedText>
+            )}
+            {summarizeDrinkNames(item.drinkNames) && (
+              <ThemedText style={styles.drinkNames}>🍺 {summarizeDrinkNames(item.drinkNames)}</ThemedText>
             )}
             {item.caption && <ThemedText style={styles.caption}>{item.caption}</ThemedText>}
 
@@ -233,7 +293,7 @@ export default function FeedScreen() {
                 </View>
               </View>
             )}
-          </View>
+          </Pressable>
         )}
       />
     </ThemedView>
@@ -257,8 +317,12 @@ const styles = StyleSheet.create({
   followButton: { backgroundColor: '#0a84ff', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
   followButtonText: { color: '#fff', fontWeight: '600' },
   card: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#3a3a3c', gap: 6 },
+  authorRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  unfollowBadge: { color: '#0a84ff', opacity: 0.8, fontSize: 12 },
+  deleteBadge: { color: '#ff453a', opacity: 0.8, fontSize: 12 },
   meta: { opacity: 0.7 },
   barNames: { opacity: 0.85, fontSize: 13, marginTop: 2 },
+  drinkNames: { opacity: 0.85, fontSize: 13, marginTop: 2 },
   caption: { marginTop: 2 },
   actionsRow: { flexDirection: 'row', gap: 20, marginTop: 6 },
   action: { opacity: 0.8 },
@@ -270,4 +334,5 @@ const styles = StyleSheet.create({
   send: { color: '#0a84ff', fontWeight: '600' },
   error: { color: '#ff453a' },
   empty: { opacity: 0.6, textAlign: 'center', marginTop: 40 },
+  footerSpinner: { marginVertical: 20 },
 });

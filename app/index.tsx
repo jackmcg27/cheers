@@ -4,7 +4,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '@/lib/auth-context';
 
 export default function Index() {
-  const { session, initializing } = useAuth();
+  const { session, initializing, passwordRecovery } = useAuth();
 
   if (initializing) {
     return (
@@ -13,6 +13,8 @@ export default function Index() {
       </View>
     );
   }
+
+  if (passwordRecovery) return <Redirect href="/(auth)/reset-password" />;
 
   return <Redirect href={session ? '/(tabs)' : '/(auth)/sign-in'} />;
 }

@@ -1,3 +1,4 @@
+import * as Linking from 'expo-linking';
 import { Redirect } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
@@ -5,6 +6,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useAuth } from '@/lib/auth-context';
+import { errorMessage } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
 
 export default function SignIn() {
@@ -20,9 +22,14 @@ export default function SignIn() {
   async function withBusy(fn: () => Promise<{ error: { message: string } | null }>) {
     setBusy(true);
     setStatus(null);
-    const { error } = await fn();
-    setStatus(error ? error.message : null);
-    setBusy(false);
+    try {
+      const { error } = await fn();
+      setStatus(error ? error.message : null);
+    } catch (e) {
+      setStatus(errorMessage(e, 'Something went wrong'));
+    } finally {
+      setBusy(false);
+    }
   }
 
   const signIn = () =>
@@ -33,14 +40,29 @@ export default function SignIn() {
       supabase.auth.signUp({
         email,
         password,
-        options: { data: { display_name: displayName.trim() } },
+        options: {
+          data: { display_name: displayName.trim() },
+          emailRedirectTo: Linking.createURL('/'),
+        },
       })
     );
 
   const sendMagicLink = () =>
     withBusy(async () => {
-      const { error } = await supabase.auth.signInWithOtp({ email });
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: Linking.createURL('/') },
+      });
       if (!error) setStatus('Check your email for a sign-in link.');
+      return { error };
+    });
+
+  const sendPasswordReset = () =>
+    withBusy(async () => {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: Linking.createURL('/'),
+      });
+      if (!error) setStatus('Check your email for a password reset link.');
       return { error };
     });
 
@@ -88,8 +110,15 @@ export default function SignIn() {
         </Pressable>
       </View>
 
-      <Pressable disabled={busy || !email} onPress={sendMagicLink}>
-        <ThemedText style={styles.link}>Or send me a magic link instead</ThemedText>
+      <Pressable disabled={busy || !email.trim()} onPress={sendMagicLink}>
+        <ThemedText style={[styles.link, !email.trim() && styles.linkDisabled]}>
+          {email.trim() ? 'Or send me a magic link instead' : 'Enter your email above to send a magic link'}
+        </ThemedText>
+      </Pressable>
+      <Pressable disabled={busy || !email.trim()} onPress={sendPasswordReset}>
+        <ThemedText style={[styles.link, !email.trim() && styles.linkDisabled]}>
+          {email.trim() ? 'Forgot password?' : 'Enter your email above to reset your password'}
+        </ThemedText>
       </Pressable>
     </ThemedView>
   );
@@ -112,5 +141,6 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.5 },
   buttonText: { color: '#fff', fontWeight: '600' },
   link: { textAlign: 'center', marginTop: 16, color: '#0a84ff' },
+  linkDisabled: { color: '#888' },
   status: { color: '#ff9f0a', textAlign: 'center' },
 });

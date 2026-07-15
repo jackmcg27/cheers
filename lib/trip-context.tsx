@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 import type { Coords } from '@/lib/bearing';
 import { distanceMeters } from '@/lib/bearing';
@@ -9,13 +9,26 @@ import { supabase } from '@/lib/supabase';
 
 export type TripPhase = 'idle' | 'loading' | 'traveling' | 'arrived';
 
+export type TripCompanion = { id: string; name: string };
+
+// A gentle nudge, not a hard limit — only fires once the trip has some drinks logged, so
+// it can't trigger off the first round ordered the moment you sit down.
+const PACE_WARNING_DRINKS_PER_HOUR = 2;
+const PACE_WARNING_MIN_DRINKS = 3;
+
 type TripContextValue = {
   phase: TripPhase;
   targetBar: PlaceBar | null;
   tripId: string | null;
   currentStopId: string | null;
   drinkCount: number;
+  companions: TripCompanion[];
+  companionDrinkCounts: Record<string, number>;
+  addCompanion: (input: { userId?: string; guestName?: string }) => Promise<void>;
+  removeCompanion: (companionId: string) => Promise<void>;
   error: string | null;
+  paceWarning: string | null;
+  dismissPaceWarning: () => void;
   revealMode: boolean;
   setRevealMode: (value: boolean) => void;
   /** Set once a published crawl is loaded; null in freeform (nearest-bar) mode. */
@@ -24,7 +37,7 @@ type TripContextValue = {
   startCrawl: (coords: Coords) => Promise<void>;
   startCrawlWithRoute: (crawl: { id: string; stops: PlaceBar[] }) => Promise<void>;
   confirmArrival: () => Promise<void>;
-  addDrink: (name?: string) => Promise<void>;
+  addDrink: (name?: string, companionId?: string) => Promise<void>;
   nextBar: (coords: Coords | null) => Promise<void>;
   endCrawl: () => Promise<void>;
 };
@@ -42,9 +55,32 @@ export function TripProvider({ children }: { children: ReactNode }) {
   const [currentStopId, setCurrentStopId] = useState<string | null>(null);
   const [visitedPlaceIds, setVisitedPlaceIds] = useState<string[]>([]);
   const [drinkCount, setDrinkCount] = useState(0);
+  const [totalDrinkCount, setTotalDrinkCount] = useState(0);
+  const [companions, setCompanions] = useState<TripCompanion[]>([]);
+  const [companionDrinkCounts, setCompanionDrinkCounts] = useState<Record<string, number>>({});
+  const [paceWarning, setPaceWarning] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [routeStops, setRouteStops] = useState<PlaceBar[] | null>(null);
   const [routeIndex, setRouteIndex] = useState(0);
+
+  useEffect(() => {
+    if (!tripStartedAt || totalDrinkCount < PACE_WARNING_MIN_DRINKS) {
+      setPaceWarning(null);
+      return;
+    }
+    const elapsedHours = (Date.now() - new Date(tripStartedAt).getTime()) / 3_600_000;
+    if (elapsedHours <= 0) return;
+    const pace = totalDrinkCount / elapsedHours;
+    setPaceWarning(
+      pace > PACE_WARNING_DRINKS_PER_HOUR
+        ? `Averaging ${pace.toFixed(1)} drinks/hr — maybe pace it with some water 💧`
+        : null
+    );
+  }, [totalDrinkCount, tripStartedAt]);
+
+  function dismissPaceWarning() {
+    setPaceWarning(null);
+  }
 
   function resetTrip() {
     setTripId(null);
@@ -53,6 +89,10 @@ export function TripProvider({ children }: { children: ReactNode }) {
     setCurrentStopId(null);
     setVisitedPlaceIds([]);
     setDrinkCount(0);
+    setTotalDrinkCount(0);
+    setPaceWarning(null);
+    setCompanions([]);
+    setCompanionDrinkCounts({});
     setRouteStops(null);
     setRouteIndex(0);
     setPhase('idle');
@@ -145,22 +185,66 @@ export function TripProvider({ children }: { children: ReactNode }) {
       setCurrentStopId(stopRow.id);
       setVisitedPlaceIds((prev) => [...prev, targetBar.placeId]);
       setDrinkCount(0);
+      setCompanionDrinkCounts({});
       setPhase('arrived');
     } catch (e) {
       setError(errorMessage(e, 'Failed to confirm arrival'));
     }
   }
 
-  async function addDrink(name?: string) {
+  async function addDrink(name?: string, companionId?: string) {
     if (!currentStopId) return;
     const { error: drinkError } = await supabase
       .from('drink_logs')
-      .insert({ trip_stop_id: currentStopId, drink_name: name ?? null });
+      .insert({ trip_stop_id: currentStopId, drink_name: name ?? null, companion_id: companionId ?? null });
     if (drinkError) {
       setError(drinkError.message);
       return;
     }
-    setDrinkCount((c) => c + 1);
+    if (companionId) {
+      setCompanionDrinkCounts((prev) => ({ ...prev, [companionId]: (prev[companionId] ?? 0) + 1 }));
+    } else {
+      setDrinkCount((c) => c + 1);
+      setTotalDrinkCount((c) => c + 1);
+    }
+  }
+
+  async function addCompanion(input: { userId?: string; guestName?: string }) {
+    if (!tripId) return;
+    const guestName = input.guestName?.trim();
+    if (!input.userId && !guestName) return;
+    const { data, error: companionError } = await supabase
+      .from('trip_companions')
+      .insert({
+        trip_id: tripId,
+        user_id: input.userId ?? null,
+        guest_name: input.userId ? null : (guestName ?? null),
+      })
+      .select('id, guest_name, profiles(display_name)')
+      .single();
+    if (companionError || !data) {
+      setError(errorMessage(companionError, 'Failed to add companion'));
+      return;
+    }
+    const row = data as unknown as { id: string; guest_name: string | null; profiles: { display_name: string | null } | null };
+    setCompanions((prev) => [
+      ...prev,
+      { id: row.id, name: row.guest_name ?? row.profiles?.display_name ?? 'Someone' },
+    ]);
+  }
+
+  async function removeCompanion(companionId: string) {
+    const { error: removeError } = await supabase.from('trip_companions').delete().eq('id', companionId);
+    if (removeError) {
+      setError(errorMessage(removeError, 'Failed to remove companion'));
+      return;
+    }
+    setCompanions((prev) => prev.filter((c) => c.id !== companionId));
+    setCompanionDrinkCounts((prev) => {
+      const next = { ...prev };
+      delete next[companionId];
+      return next;
+    });
   }
 
   async function nextBar(coords: Coords | null) {
@@ -266,7 +350,13 @@ export function TripProvider({ children }: { children: ReactNode }) {
         tripId,
         currentStopId,
         drinkCount,
+        companions,
+        companionDrinkCounts,
+        addCompanion,
+        removeCompanion,
         error,
+        paceWarning,
+        dismissPaceWarning,
         revealMode,
         setRevealMode,
         routeStops,

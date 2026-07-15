@@ -1,17 +1,20 @@
-import { useMemo } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Switch, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BarRevealCard } from '@/components/BarRevealCard';
 import { BottleCompass } from '@/components/BottleCompass';
+import { CompanionsPanel } from '@/components/CompanionsPanel';
 import { DrinkCounter } from '@/components/DrinkCounter';
 import { MockLocationControls } from '@/components/MockLocationControls';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useHeading } from '@/hooks/useHeading';
 import { useLocation } from '@/hooks/useLocation';
+import { useAuth } from '@/lib/auth-context';
 import { bearingDegrees, distanceMeters, formatDistance } from '@/lib/bearing';
+import { searchProfiles, type ProfileMatch } from '@/lib/feed';
 import { isMockLocationEnabled } from '@/lib/mock-location';
 import { useTrip } from '@/lib/trip-context';
 
@@ -19,13 +22,20 @@ const ARRIVAL_RADIUS_M = 40;
 
 export default function CompassScreen() {
   const insets = useSafeAreaInsets();
+  const { session } = useAuth();
   const { coords, errorMsg: locationError } = useLocation();
   const heading = useHeading();
   const {
     phase,
     targetBar,
     drinkCount,
+    companions,
+    companionDrinkCounts,
+    addCompanion,
+    removeCompanion,
     error,
+    paceWarning,
+    dismissPaceWarning,
     revealMode,
     setRevealMode,
     routeStops,
@@ -36,6 +46,26 @@ export default function CompassScreen() {
     nextBar,
     endCrawl,
   } = useTrip();
+
+  const [companionQuery, setCompanionQuery] = useState('');
+  const [companionResults, setCompanionResults] = useState<ProfileMatch[]>([]);
+
+  useEffect(() => {
+    if (!companionQuery.trim() || !session) {
+      setCompanionResults([]);
+      return;
+    }
+    let cancelled = false;
+    const timeout = setTimeout(() => {
+      searchProfiles(companionQuery, session.user.id)
+        .then((r) => !cancelled && setCompanionResults(r))
+        .catch(() => {});
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [companionQuery, session]);
 
   const distance = useMemo(
     () => (coords && targetBar ? distanceMeters(coords, targetBar.location) : null),
@@ -80,6 +110,13 @@ export default function CompassScreen() {
 
       {locationError && <ThemedText style={styles.error}>{locationError}</ThemedText>}
       {error && <ThemedText style={styles.error}>{error}</ThemedText>}
+
+      {paceWarning && (
+        <Pressable style={styles.paceBanner} onPress={dismissPaceWarning}>
+          <ThemedText style={styles.paceBannerText}>{paceWarning}</ThemedText>
+          <ThemedText style={styles.paceBannerDismiss}>✕</ThemedText>
+        </Pressable>
+      )}
 
       {phase === 'idle' && (
         <View style={styles.center}>
@@ -131,14 +168,26 @@ export default function CompassScreen() {
       )}
 
       {phase === 'arrived' && targetBar && (
-        <View style={styles.arrivedCenter}>
+        <ScrollView contentContainerStyle={styles.arrivedCenter}>
           {routeStops && (
             <ThemedText style={styles.hint}>
               Stop {routeIndex + 1} of {routeStops.length}
             </ThemedText>
           )}
           <BarRevealCard bar={targetBar} compact />
-          <DrinkCounter count={drinkCount} onAdd={addDrink} />
+          <DrinkCounter count={drinkCount} onAdd={addDrink} label="You" />
+          <CompanionsPanel
+            companions={companions}
+            drinkCounts={companionDrinkCounts}
+            showDrinkCounters
+            searchQuery={companionQuery}
+            onSearchQueryChange={setCompanionQuery}
+            searchResults={companionResults}
+            onAddUser={(userId) => addCompanion({ userId })}
+            onAddGuest={(name) => addCompanion({ guestName: name })}
+            onRemove={removeCompanion}
+            onAddDrink={(companionId, name) => addDrink(name, companionId)}
+          />
           <View style={styles.row}>
             <Pressable style={styles.secondaryButton} onPress={() => nextBar(coords)}>
               <ThemedText style={styles.lightButtonText}>Next Bar</ThemedText>
@@ -147,7 +196,7 @@ export default function CompassScreen() {
               <ThemedText style={styles.lightButtonText}>End Crawl</ThemedText>
             </Pressable>
           </View>
-        </View>
+        </ScrollView>
       )}
     </ThemedView>
   );
@@ -164,6 +213,20 @@ const styles = StyleSheet.create({
   hint: { opacity: 0.7 },
   distance: { fontSize: 24, fontWeight: '700', color: '#f2c14e', letterSpacing: 0.5 },
   error: { color: '#ff453a' },
+  paceBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(242, 193, 78, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(242, 193, 78, 0.4)',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    gap: 10,
+  },
+  paceBannerText: { flex: 1, color: '#f2c14e', fontSize: 13 },
+  paceBannerDismiss: { color: '#f2c14e', opacity: 0.7, fontSize: 13 },
   primaryButton: {
     backgroundColor: '#f2c14e',
     paddingHorizontal: 24,

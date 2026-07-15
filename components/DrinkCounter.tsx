@@ -6,9 +6,10 @@ import { ThemedText } from '@/components/ThemedText';
 type Props = {
   count: number;
   onAdd: (name?: string) => void;
+  label?: string;
 };
 
-export function DrinkCounter({ count, onAdd }: Props) {
+export function DrinkCounter({ count, onAdd, label }: Props) {
   const [name, setName] = useState('');
 
   function add() {
@@ -18,6 +19,7 @@ export function DrinkCounter({ count, onAdd }: Props) {
 
   return (
     <View style={styles.container}>
+      {label && <ThemedText style={styles.label}>{label}</ThemedText>}
       <View style={styles.row}>
         <ThemedText type="defaultSemiBold">🍻 {count}</ThemedText>
         <Pressable style={styles.button} onPress={add}>
@@ -39,6 +41,7 @@ export function DrinkCounter({ count, onAdd }: Props) {
 
 const styles = StyleSheet.create({
   container: { alignItems: 'center', gap: 8 },
+  label: { opacity: 0.75, fontSize: 13 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   button: { backgroundColor: '#0a84ff', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10 },
   buttonText: { color: '#fff', fontWeight: '600' },

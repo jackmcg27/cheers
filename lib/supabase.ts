@@ -106,8 +106,19 @@ export type Database = {
         ];
       };
       drink_logs: {
-        Row: { id: string; trip_stop_id: string; drink_name: string | null; logged_at: string };
-        Insert: { trip_stop_id: string; drink_name?: string | null; logged_at?: string };
+        Row: {
+          id: string;
+          trip_stop_id: string;
+          drink_name: string | null;
+          companion_id: string | null;
+          logged_at: string;
+        };
+        Insert: {
+          trip_stop_id: string;
+          drink_name?: string | null;
+          companion_id?: string | null;
+          logged_at?: string;
+        };
         Update: { drink_name?: string | null };
         Relationships: [
           {
@@ -115,6 +126,34 @@ export type Database = {
             columns: ['trip_stop_id'];
             isOneToOne: false;
             referencedRelation: 'trip_stops';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'drink_logs_companion_id_fkey';
+            columns: ['companion_id'];
+            isOneToOne: false;
+            referencedRelation: 'trip_companions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      trip_companions: {
+        Row: { id: string; trip_id: string; user_id: string | null; guest_name: string | null; created_at: string };
+        Insert: { trip_id: string; user_id?: string | null; guest_name?: string | null };
+        Update: never;
+        Relationships: [
+          {
+            foreignKeyName: 'trip_companions_trip_id_fkey';
+            columns: ['trip_id'];
+            isOneToOne: false;
+            referencedRelation: 'trips';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'trip_companions_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
         ];
