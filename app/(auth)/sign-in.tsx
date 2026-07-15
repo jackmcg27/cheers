@@ -24,7 +24,7 @@ export default function SignIn() {
     setStatus(null);
     try {
       const { error } = await fn();
-      setStatus(error ? error.message : null);
+      if (error) setStatus(error.message);
     } catch (e) {
       setStatus(errorMessage(e, 'Something went wrong'));
     } finally {
@@ -96,8 +96,6 @@ export default function SignIn() {
         onChangeText={setPassword}
       />
 
-      {status && <ThemedText style={styles.status}>{status}</ThemedText>}
-
       <View style={styles.row}>
         <Pressable style={styles.button} disabled={busy} onPress={signIn}>
           <ThemedText style={styles.buttonText}>Sign In</ThemedText>
@@ -120,6 +118,8 @@ export default function SignIn() {
           {email.trim() ? 'Forgot password?' : 'Enter your email above to reset your password'}
         </ThemedText>
       </Pressable>
+
+      {status && <ThemedText style={styles.status}>{status}</ThemedText>}
     </ThemedView>
   );
 }
