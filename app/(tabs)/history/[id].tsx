@@ -1,15 +1,20 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { TripDetailView } from '@/components/TripDetailView';
+import { TripPhotoEditor } from '@/components/TripPhotoEditor';
+import { useAuth } from '@/lib/auth-context';
 import { errorMessage } from '@/lib/errors';
 import { fetchTripDetail, type TripDetail } from '@/lib/trip-detail';
 
 export default function TripDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { session } = useAuth();
+  const insets = useSafeAreaInsets();
   const [detail, setDetail] = useState<TripDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +52,7 @@ export default function TripDetailScreen() {
 
   return (
     <ThemedView style={styles.root}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={[styles.container, { paddingBottom: insets.bottom + 76 }]}>
         <ThemedText type="title">
           {new Date(detail.startedAt).toLocaleDateString(undefined, {
             weekday: 'long',
@@ -56,6 +61,15 @@ export default function TripDetailScreen() {
           })}
         </ThemedText>
         <TripDetailView detail={detail} />
+
+        {session && (
+          <TripPhotoEditor
+            tripId={detail.id}
+            userId={session.user.id}
+            photoUrl={detail.photoUrl}
+            onPhotoChange={(photoUrl) => setDetail((prev) => (prev ? { ...prev, photoUrl } : prev))}
+          />
+        )}
       </ScrollView>
     </ThemedView>
   );

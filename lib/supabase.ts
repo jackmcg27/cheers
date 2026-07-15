@@ -58,6 +58,7 @@ export type Database = {
           ended_at: string | null;
           total_distance_m: number | null;
           total_duration_s: number | null;
+          photo_url: string | null;
           created_at: string;
         };
         Insert: { user_id: string; crawl_id?: string | null; started_at?: string };
@@ -66,6 +67,7 @@ export type Database = {
           ended_at?: string | null;
           total_distance_m?: number | null;
           total_duration_s?: number | null;
+          photo_url?: string | null;
         };
         Relationships: [
           {

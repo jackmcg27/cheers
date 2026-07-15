@@ -123,7 +123,11 @@ RLS policies are **additive** — Postgres OR's together every permissive policy
 | DB schema change | new numbered file in `supabase/migrations/`, then update the `Database` type in `lib/supabase.ts` to match |
 | Auth flow | `lib/auth-context.tsx`, `app/(auth)/sign-in.tsx`, `app/(auth)/reset-password.tsx` |
 | Feed page size / pagination | `lib/feed.ts` (`FEED_PAGE_SIZE`, `fetchFeed`'s `offset`/`limit`), `app/(tabs)/feed/index.tsx` (`loadMore`, `onEndReached`) |
+| History page size / pagination | `app/(tabs)/history/index.tsx` (`HISTORY_PAGE_SIZE`, `loadTrips`/`loadMoreTrips`, `onEndReached`) — query is inline, no `lib/` file backs it |
 | Trip detail view (stops/companions) | `lib/trip-detail.ts`, `components/TripDetailView.tsx`, `app/(tabs)/history/[id].tsx`, `app/(tabs)/feed/[id].tsx` |
+| Crawl stop list (after publishing) | `lib/crawls.ts` (`replaceCrawlStops`, `upsertBarsAndGetIds`), `app/(tabs)/crawls/[id].tsx` ("Edit Stops" mode) |
+| Trip photos | `lib/trip-photos.ts` (`uploadTripPhoto`, `removeTripPhoto`), `supabase/migrations/0009_trip_photos.sql` (bucket + RLS), `components/TripPhotoEditor.tsx` (upload/remove UI, used by both history and feed detail screens), `components/TripDetailView.tsx` (renders it) |
+| Delete a feed post from its detail screen | `app/(tabs)/feed/[id].tsx` (`confirmDeletePost`, gated on `session.user.id === detail.ownerId` and the `postId` route param), `lib/feed.ts` (`deletePost`) |
 
 ## Testing
 
@@ -257,3 +261,35 @@ has hit that class of bug more than once, see the Gotchas below).
   magic links — no separate config needed, since `resetPasswordForEmail`'s `redirectTo` hits the
   same `cheers://` scheme.
 - **Expo Go only supports one SDK version at a time** (whatever's currently on the App/Play Store). If it says a project's SDK is "incompatible," check `package.json`'s `expo` version against what Expo Go on your phone actually reports, and align with `npx expo install expo@<version>` + `npx expo install --fix`.
+- **Storage bucket RLS policies key off the first path segment, not a DB column.** `trip-photos`
+  (`0009`) uses the same convention Supabase's own docs recommend for per-user storage: every
+  object is uploaded to `${userId}/${tripId}.<ext>`, and the `storage.objects` insert/update/delete
+  policies check `(storage.foldername(name))[1] = auth.uid()::text` — the path prefix *is* the
+  ownership check, there's no foreign key back to `trips`. Get the upload path wrong (e.g. drop
+  the `userId` prefix) and the policy silently denies with no useful error beyond "row-level
+  security policy violation." Also note `supabase.storage.from(...).upload()` wants a
+  `Blob`/`ArrayBuffer`, not a `file://` URI. **Don't use `fetch(localUri).then(r => r.blob())` to
+  get it** — that's the obvious approach but silently produces a 0-byte blob for local `file://`
+  URIs on some platforms (uploads "succeed," `photo_url` gets set, and the image is just broken
+  forever). `lib/trip-photos.ts` instead reads the file as base64 via `expo-file-system`'s
+  `new File(uri).base64()` (SDK 54's current File API — the older `readAsStringAsync` free
+  function now lives at `expo-file-system/legacy`) and decodes it to an `ArrayBuffer` with
+  `base64-arraybuffer`'s `decode()` before handing that to `.upload()`.
+- **Don't trust `expo-image-picker`'s `mimeType` for the upload's extension/`Content-Type` —
+  sniff the real bytes instead.** `pickPhoto` in `history/[id].tsx` uses `allowsEditing: true` to
+  crop, and cropping commonly re-encodes the output (typically to JPEG) regardless of the source
+  format; the returned asset's `mimeType` field isn't documented to track that re-encode and can
+  still report the pre-crop format. Tagging the upload with that stale `mimeType` produced files
+  that rendered fine in-app (RN's `Image` ignores the filename/`Content-Type` and just decodes
+  whatever bytes come back) but showed as "corrupted / unsupported format" with no dashboard
+  preview in Supabase Storage, which does trust them. `lib/trip-photos.ts`'s `sniffFormat` instead
+  reads the magic bytes off the decoded `ArrayBuffer` (JPEG/PNG/GIF/WEBP/HEIC signatures) to pick
+  the extension and `contentType`, so the label always matches what was actually uploaded.
+- **A re-uploaded trip photo needs a cache-busting URL, or RN's `Image` shows the old one.**
+  `${userId}/${tripId}.<ext>` is deterministic, so replacing a photo with another of the same
+  format reuses the exact same Storage path and therefore the exact same public URL — RN's
+  `Image` caches by URI, so without something forcing the URL to change it keeps rendering the
+  previous photo's bytes even after `upsert: true` replaced the object server-side (symptom:
+  delete a photo, add a new one, the *old* photo reappears). `uploadTripPhoto` appends `?v=` +
+  a timestamp to the URL it stores on `trips.photo_url`; `removeTripPhoto`'s `pathFromPublicUrl`
+  strips that query string back off before deriving the storage path to delete.

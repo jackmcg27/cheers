@@ -9,14 +9,9 @@ you finish (or start) something.
 > Leave the "Known gaps / tech debt" section honest — it's more useful than a checklist that
 > only ever says "done."
 
-Last updated: 2026-07-14 (drink-name breakdown, pace-nudge banner, duplicate-crawl-publish
-guard, Feed-card unfollow, places.ts test coverage, delete-trip/delete-post, a fix for a
-pre-existing `feed_posts` RLS infinite-recursion bug (`0006`), per-trip companions /
-drink-tracking-for-others (`0007`), working magic-link/signup-confirmation deep links, a
-forgot/reset-password flow, per-companion drink breakdown on History cards, Feed pagination,
-tappable History/Feed cards opening a full trip detail view with a companion breakdown (`0008`),
-a followers list with a "Follow back" button, and 100% line/function test coverage across `lib/`
-all added in this session; migrations `0007`/`0008` have been applied to the Supabase project).
+Last updated: 2026-07-15 (History pagination, editing a crawl's stop list after publishing, and
+trip photos all added this session and confirmed working end to end on a real device; also added
+deleting your own post from the Feed detail screen, not just its list card).
 
 ## Phase 1 — Core loop ✅ done
 
@@ -125,6 +120,11 @@ all added in this session; migrations `0007`/`0008` have been applied to the Sup
 - [x] Edit (name/description/public) / delete a crawl — creator-only, from the crawl detail screen
       (delete needed a follow-up migration, `0004`, since `trips.crawl_id` had no `ON DELETE`
       behavior and blocked deleting any crawl someone had actually started — now `SET NULL`)
+- [x] Edit a crawl's stop list after publishing (reorder/add/remove) — creator-only, "Edit Stops"
+      on the crawl detail screen, reusing `create.tsx`'s add/reorder/remove-and-search UI pattern
+      against a local draft. `lib/crawls.ts`'s `replaceCrawlStops` does delete-then-reinsert
+      (extracted `upsertBarsAndGetIds` out of `createCrawl` so both share the bar-upsert step);
+      no new migration needed, same owner-only RLS `crawl_stops` already had
 - [x] Profile / stats screen — folded into the History tab rather than a new tab (total crawls,
       bars visited, drinks, distance walked, crawls published)
 - [x] "Drink responsibly" pace nudge — a dismissible amber banner on the Compass screen
@@ -133,7 +133,22 @@ all added in this session; migrations `0007`/`0008` have been applied to the Sup
       least 3 drinks logged, so it can't fire off the first round. Recomputed each time a
       drink is logged; dismissing it just clears the current banner, the next drink can
       re-trigger it.
-- [ ] Trip photos
+- [x] History pagination — mirrors Feed's `.range()` + `onEndReached` pattern (`HISTORY_PAGE_SIZE`
+      = 20, `loadTrips`/`loadMoreTrips` in `history/index.tsx`; query stays inline like the rest of
+      that screen rather than moving to `lib/`, same exception noted in `docs/architecture.md`)
+- [x] Trip photos — one optional photo per trip, owner-only, uploaded via `expo-image-picker`
+      from `components/TripPhotoEditor.tsx` (shared by History's own detail screen and, when
+      you're the owner, Feed's detail screen too). `lib/trip-photos.ts`'s
+      `uploadTripPhoto`/`removeTripPhoto` write to a public `trip-photos` Storage bucket under
+      `${userId}/${tripId}.<ext>` and set/clear `trips.photo_url`; `0009_trip_photos.sql` adds the
+      column, bucket, and owner-only write / public-read `storage.objects` policies. The upload's
+      extension/content-type are sniffed from the actual decoded bytes rather than trusted from
+      the picker's `mimeType` field, which can disagree with the real (often re-encoded-on-crop)
+      format — see the Gotchas entry in `docs/architecture.md`. `TripDetailView` renders the
+      photo when set, so it shows on both History's and Feed's detail screens
+- [x] Delete your own post from the Feed detail screen, not just its list card — same
+      `lib/feed.ts` `deletePost`, gated on `session.user.id === detail.ownerId` and a `postId`
+      route param now passed through from `feed/index.tsx`'s `openPost`
 - [ ] Real map widget (route/pins) — currently "Open in Maps" links only, see
       [`docs/architecture.md`](docs/architecture.md) for why
 
@@ -174,13 +189,8 @@ all added in this session; migrations `0007`/`0008` have been applied to the Sup
 
 ## Known gaps / tech debt
 
-- Editing a crawl only covers name/description/visibility, not the stop list itself (no
-  reorder/add/remove after publishing — would need to reuse the builder UI from `create.tsx`).
 - `crawls` has no `updated_at`/edit history.
 - No push notifications — realtime feed updates only fire while the Feed tab is open and
   mounted.
-- History has no pagination — like Feed used to, `loadTrips` (in `history/index.tsx`) pulls every
-  completed trip in one query. Same fix would apply (`.range()` + `onEndReached`) once it matters
-  at scale.
 - No offline handling — the app assumes a live network connection throughout; a dropped
   connection mid-crawl doesn't queue writes.

@@ -188,7 +188,12 @@ export default function FeedScreen() {
     if (!post.tripId) return;
     router.push({
       pathname: '/(tabs)/feed/[id]',
-      params: { id: post.tripId, authorName: post.authorName ?? '', caption: post.caption ?? '' },
+      params: {
+        id: post.tripId,
+        postId: post.id,
+        authorName: post.authorName ?? '',
+        caption: post.caption ?? '',
+      },
     });
   }
 

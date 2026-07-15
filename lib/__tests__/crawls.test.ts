@@ -9,6 +9,7 @@ import {
   fetchCrawlDetail,
   fetchCrawls,
   publishTripAsCrawl,
+  replaceCrawlStops,
   updateCrawl,
 } from '../crawls';
 import type { PlaceBar } from '../places';
@@ -335,6 +336,65 @@ describe('publishTripAsCrawl', () => {
         isPublic: false,
       })
     ).rejects.toThrow('no stops to publish');
+  });
+});
+
+describe('replaceCrawlStops', () => {
+  const stops: PlaceBar[] = [
+    { placeId: 'p1', name: 'Bar One', address: 'A1', location: { latitude: 1, longitude: 1 }, photoRef: null },
+    { placeId: 'p2', name: 'Bar Two', address: 'A2', location: { latitude: 2, longitude: 2 }, photoRef: null },
+  ];
+
+  it('rejects an empty stop list before making any request', async () => {
+    await expect(replaceCrawlStops('crawl-1', [])).rejects.toThrow('at least one stop');
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('upserts bars, deletes the old stops, and reinserts in the new order', async () => {
+    const calls: Record<string, unknown[]> = { crawl_stops_delete: [], crawl_stops_insert: [] };
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'bars') {
+        return queryResult({
+          data: [
+            { id: 'bar-2', place_id: 'p2' },
+            { id: 'bar-1', place_id: 'p1' },
+          ],
+          error: null,
+        });
+      }
+      if (table === 'crawl_stops') {
+        const q = queryResult({ error: null });
+        q.delete = jest.fn(() => {
+          calls.crawl_stops_delete.push(true);
+          return q;
+        });
+        q.insert = jest.fn((rows: unknown[]) => {
+          calls.crawl_stops_insert.push(...rows);
+          return q;
+        });
+        return q;
+      }
+      throw new Error(`unexpected table: ${table}`);
+    });
+
+    await replaceCrawlStops('crawl-1', stops);
+
+    expect(calls.crawl_stops_delete).toHaveLength(1);
+    expect(calls.crawl_stops_insert).toEqual([
+      { crawl_id: 'crawl-1', bar_id: 'bar-1', stop_order: 0 },
+      { crawl_id: 'crawl-1', bar_id: 'bar-2', stop_order: 1 },
+    ]);
+  });
+
+  it('throws the Supabase error if the delete fails, without inserting', async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'bars') return queryResult({ data: [{ id: 'bar-1', place_id: 'p1' }], error: null });
+      if (table === 'crawl_stops') return queryResult({ error: { message: 'denied' } });
+      throw new Error(`unexpected table: ${table}`);
+    });
+
+    await expect(replaceCrawlStops('crawl-1', [stops[0]])).rejects.toEqual({ message: 'denied' });
   });
 });
 

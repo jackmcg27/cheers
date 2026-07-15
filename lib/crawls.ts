@@ -137,17 +137,8 @@ async function insertCrawlStops(crawlId: string, barIds: string[]) {
   if (error) throw error;
 }
 
-/** Upserts each stop's bar into the shared cache, then creates the crawl + ordered stops. */
-export async function createCrawl(options: {
-  creatorId: string;
-  name: string;
-  description: string | null;
-  isPublic: boolean;
-  stops: PlaceBar[];
-}): Promise<string> {
-  const { creatorId, name, description, isPublic, stops } = options;
-  if (stops.length === 0) throw new Error('A crawl needs at least one stop.');
-
+/** Upserts each bar into the shared cache and resolves its id, preserving input order. */
+async function upsertBarsAndGetIds(stops: PlaceBar[]): Promise<string[]> {
   const { data: barRows, error: barError } = await supabase
     .from('bars')
     .upsert(
@@ -165,11 +156,25 @@ export async function createCrawl(options: {
   if (barError || !barRows) throw barError ?? new Error('Failed to save crawl bars');
 
   const idByPlaceId = new Map(barRows.map((b) => [b.place_id, b.id]));
-  const barIds = stops.map((s) => {
+  return stops.map((s) => {
     const id = idByPlaceId.get(s.placeId);
     if (!id) throw new Error(`Failed to resolve bar id for ${s.name}`);
     return id;
   });
+}
+
+/** Upserts each stop's bar into the shared cache, then creates the crawl + ordered stops. */
+export async function createCrawl(options: {
+  creatorId: string;
+  name: string;
+  description: string | null;
+  isPublic: boolean;
+  stops: PlaceBar[];
+}): Promise<string> {
+  const { creatorId, name, description, isPublic, stops } = options;
+  if (stops.length === 0) throw new Error('A crawl needs at least one stop.');
+
+  const barIds = await upsertBarsAndGetIds(stops);
 
   const { data: crawl, error: crawlError } = await supabase
     .from('crawls')
@@ -180,6 +185,22 @@ export async function createCrawl(options: {
 
   await insertCrawlStops(crawl.id, barIds);
   return crawl.id;
+}
+
+/**
+ * Replaces a crawl's entire stop list (order, additions, removals) in one go — delete-then-
+ * reinsert rather than a diff, since `crawl_stops` rows carry no state worth preserving beyond
+ * `stop_order`. RLS restricts this to the crawl's creator, same as `updateCrawl`.
+ */
+export async function replaceCrawlStops(crawlId: string, stops: PlaceBar[]): Promise<void> {
+  if (stops.length === 0) throw new Error('A crawl needs at least one stop.');
+
+  const barIds = await upsertBarsAndGetIds(stops);
+
+  const { error: deleteError } = await supabase.from('crawl_stops').delete().eq('crawl_id', crawlId);
+  if (deleteError) throw deleteError;
+
+  await insertCrawlStops(crawlId, barIds);
 }
 
 /** Publishes an already-completed trip's stop order as a new named, shareable crawl. */

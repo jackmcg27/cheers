@@ -1,6 +1,16 @@
 import { useCallback, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
-import { Alert, FlatList, Modal, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Switch,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/ThemedText';
@@ -29,11 +39,18 @@ type TripSummary = {
 
 type PendingAction = { type: 'post' | 'crawl'; tripId: string } | { type: 'name' };
 
+const HISTORY_PAGE_SIZE = 20;
+
+const TRIP_SUMMARY_SELECT =
+  'id, started_at, ended_at, total_distance_m, total_duration_s, crawl_id, trip_stops(drink_logs(drink_name, companion_id)), trip_companions(id, guest_name, profiles(display_name))';
+
 export default function HistoryScreen() {
   const { session } = useAuth();
   const insets = useSafeAreaInsets();
   const [trips, setTrips] = useState<TripSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [myDisplayName, setMyDisplayName] = useState<string | null>(null);
   const [stats, setStats] = useState<MyStats | null>(null);
 
@@ -51,17 +68,36 @@ export default function HistoryScreen() {
     setLoading(true);
     supabase
       .from('trips')
-      .select(
-        'id, started_at, ended_at, total_distance_m, total_duration_s, crawl_id, trip_stops(drink_logs(drink_name, companion_id)), trip_companions(id, guest_name, profiles(display_name))'
-      )
+      .select(TRIP_SUMMARY_SELECT)
       .eq('user_id', session.user.id)
       .not('ended_at', 'is', null)
       .order('started_at', { ascending: false })
+      .range(0, HISTORY_PAGE_SIZE - 1)
       .then(({ data }) => {
-        setTrips((data as unknown as TripSummary[]) ?? []);
+        const page = (data as unknown as TripSummary[]) ?? [];
+        setTrips(page);
+        setHasMore(page.length === HISTORY_PAGE_SIZE);
         setLoading(false);
       });
   }, [session]);
+
+  function loadMoreTrips() {
+    if (!session || loading || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    supabase
+      .from('trips')
+      .select(TRIP_SUMMARY_SELECT)
+      .eq('user_id', session.user.id)
+      .not('ended_at', 'is', null)
+      .order('started_at', { ascending: false })
+      .range(trips.length, trips.length + HISTORY_PAGE_SIZE - 1)
+      .then(({ data }) => {
+        const page = (data as unknown as TripSummary[]) ?? [];
+        setTrips((prev) => [...prev, ...page]);
+        setHasMore(page.length === HISTORY_PAGE_SIZE);
+        setLoadingMore(false);
+      });
+  }
 
   const loadMyProfile = useCallback(() => {
     if (!session) return;
@@ -205,10 +241,13 @@ export default function HistoryScreen() {
         data={trips}
         keyExtractor={(t) => t.id}
         refreshing={loading}
+        onEndReached={loadMoreTrips}
+        onEndReachedThreshold={0.4}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 76 }]}
         ListEmptyComponent={
           !loading ? <ThemedText style={styles.empty}>No completed crawls yet.</ThemedText> : null
         }
+        ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} /> : null}
         renderItem={({ item }) => {
           const logs = item.trip_stops?.flatMap((s) => s.drink_logs) ?? [];
           const companions = (item.trip_companions ?? []).map((c) => ({
@@ -380,6 +419,7 @@ const styles = StyleSheet.create({
   drinkNames: { opacity: 0.85, fontSize: 13, marginTop: 2 },
   companionBreakdown: { marginTop: 2, gap: 2 },
   empty: { opacity: 0.6, textAlign: 'center', marginTop: 40 },
+  footerSpinner: { marginVertical: 20 },
   cardActions: { flexDirection: 'row', gap: 20, marginTop: 8 },
   cardAction: { color: '#0a84ff', fontSize: 13 },
   deleteAction: { color: '#ff453a', fontSize: 13 },

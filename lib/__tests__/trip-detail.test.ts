@@ -28,11 +28,13 @@ describe('fetchTripDetail', () => {
       return queryResult({
         data: {
           id: 'trip-1',
+          user_id: 'u1',
           started_at: '2026-01-01T00:00:00Z',
           ended_at: '2026-01-01T02:00:00Z',
           total_distance_m: 1200,
           total_duration_s: 7200,
           crawl_id: null,
+          photo_url: 'https://cdn.example/trip-1.jpg',
           profiles: { display_name: 'Jack' },
           trip_stops: [
             {
@@ -66,7 +68,9 @@ describe('fetchTripDetail', () => {
 
     const detail = await fetchTripDetail('trip-1');
 
+    expect(detail.ownerId).toBe('u1');
     expect(detail.ownerName).toBe('Jack');
+    expect(detail.photoUrl).toBe('https://cdn.example/trip-1.jpg');
     expect(detail.totalDrinks).toBe(3);
     expect(detail.ownDrinkSummary).toBe('IPA ×2');
     expect(detail.stops.map((s) => s.id)).toEqual(['stop-1', 'stop-2']); // sorted by stop_order
@@ -85,11 +89,13 @@ describe('fetchTripDetail', () => {
       queryResult({
         data: {
           id: 'trip-1',
+          user_id: 'u1',
           started_at: '2026-01-01T00:00:00Z',
           ended_at: null,
           total_distance_m: null,
           total_duration_s: null,
           crawl_id: null,
+          photo_url: null,
           profiles: null,
           trip_stops: [],
           trip_companions: [{ id: 'c1', guest_name: null, profiles: { display_name: 'Alex' } }],

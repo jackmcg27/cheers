@@ -21,12 +21,14 @@ export type TripDetailCompanion = {
 
 export type TripDetail = {
   id: string;
+  ownerId: string;
   ownerName: string | null;
   startedAt: string;
   endedAt: string | null;
   totalDistanceM: number | null;
   totalDurationS: number | null;
   crawlId: string | null;
+  photoUrl: string | null;
   totalDrinks: number;
   ownDrinkSummary: string | null;
   stops: TripDetailStop[];
@@ -35,11 +37,13 @@ export type TripDetail = {
 
 type TripDetailRow = {
   id: string;
+  user_id: string;
   started_at: string;
   ended_at: string | null;
   total_distance_m: number | null;
   total_duration_s: number | null;
   crawl_id: string | null;
+  photo_url: string | null;
   profiles: { display_name: string | null } | null;
   trip_stops: {
     id: string;
@@ -66,7 +70,7 @@ export async function fetchTripDetail(tripId: string): Promise<TripDetail> {
   const { data, error } = await supabase
     .from('trips')
     .select(
-      'id, started_at, ended_at, total_distance_m, total_duration_s, crawl_id, profiles!user_id(display_name), trip_stops(id, stop_order, arrived_at, left_at, bars(name, address), drink_logs(drink_name, companion_id)), trip_companions(id, guest_name, profiles(display_name))'
+      'id, user_id, started_at, ended_at, total_distance_m, total_duration_s, crawl_id, photo_url, profiles!user_id(display_name), trip_stops(id, stop_order, arrived_at, left_at, bars(name, address), drink_logs(drink_name, companion_id)), trip_companions(id, guest_name, profiles(display_name))'
     )
     .eq('id', tripId)
     .single();
@@ -89,12 +93,14 @@ export async function fetchTripDetail(tripId: string): Promise<TripDetail> {
 
   return {
     id: row.id,
+    ownerId: row.user_id,
     ownerName: row.profiles?.display_name ?? null,
     startedAt: row.started_at,
     endedAt: row.ended_at,
     totalDistanceM: row.total_distance_m,
     totalDurationS: row.total_duration_s,
     crawlId: row.crawl_id,
+    photoUrl: row.photo_url,
     totalDrinks: allLogs.length,
     ownDrinkSummary: summarizeDrinkNames(ownLogs.map((l) => l.drink_name)),
     stops: stops.map((s) => ({

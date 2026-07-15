@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/ThemedText';
 import { formatDistance, formatDuration } from '@/lib/format';
@@ -14,6 +14,8 @@ function formatTime(iso: string): string {
 export function TripDetailView({ detail }: { detail: TripDetail }) {
   return (
     <View style={styles.root}>
+      {detail.photoUrl && <Image source={{ uri: detail.photoUrl }} style={styles.photo} />}
+
       <ThemedText style={styles.meta}>
         🍻 {detail.totalDrinks} · {formatDuration(detail.totalDurationS)} ·{' '}
         {detail.totalDistanceM ? formatDistance(detail.totalDistanceM) : '—'}
@@ -66,6 +68,7 @@ export function TripDetailView({ detail }: { detail: TripDetail }) {
 
 const styles = StyleSheet.create({
   root: { gap: 16 },
+  photo: { width: '100%', aspectRatio: 4 / 3, borderRadius: 12 },
   meta: { opacity: 0.7 },
   section: { gap: 8 },
   sectionTitle: { marginBottom: 2 },
