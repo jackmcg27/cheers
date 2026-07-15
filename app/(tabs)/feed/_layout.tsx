@@ -5,6 +5,7 @@ export default function FeedLayout() {
     <Stack>
       <Stack.Screen name="index" options={{ title: 'Feed' }} />
       <Stack.Screen name="[id]" options={{ title: 'Trip' }} />
+      <Stack.Screen name="followers" options={{ title: 'Followers' }} />
     </Stack>
   );
 }

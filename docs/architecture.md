@@ -29,6 +29,7 @@ app/
       _layout.tsx          Nested Stack (native header, back button)
       index.tsx            Social feed: posts, likes, comments, follow search, realtime
       [id].tsx             Trip detail (same shared view as History's), by trip id
+      followers.tsx        Who follows you, with a "Follow back" button per person
     crawls/
       _layout.tsx          Nested Stack (native header, back button)
       index.tsx            Browse: your crawls + public crawls
@@ -50,7 +51,7 @@ The Compass screen (`app/(tabs)/index.tsx`) is the one screen that reads live GP
 | `bearing.ts` | Pure math, no I/O: `distanceMeters`, `bearingDegrees`, `angleDiff`, `formatDistance`. |
 | `places.ts` | Google Places API (New) wrapper — `findNearbyBars`/`findNearestBar` (nearest-bar mode), `searchBarsByText` (crawl builder search), `placePhotoUrl`. |
 | `crawls.ts` | Crawl CRUD: `fetchCrawls`, `fetchCrawlDetail`, `createCrawl`, `publishTripAsCrawl`. |
-| `feed.ts` | Feed posts (including `deletePost`), likes, comments, follow/unfollow, profile search. `fetchFeed` is paginated — `FEED_PAGE_SIZE` (20) + `.range()`, called again with `{ offset }` for the next page; `feed/index.tsx` treats a page shorter than `FEED_PAGE_SIZE` as "no more." Each `FeedPost` also carries `tripId` (from `feed_posts.trip_id`) so the card can navigate to the shared trip-detail screen by trip id. |
+| `feed.ts` | Feed posts (including `deletePost`), likes, comments, follow/unfollow, profile search, and `fetchFollowers`/`fetchFollowingIds` (who follows you / who you follow — `feed/followers.tsx`'s "Follow back" screen combines both). `fetchFeed` is paginated — `FEED_PAGE_SIZE` (20) + `.range()`, called again with `{ offset }` for the next page; `feed/index.tsx` treats a page shorter than `FEED_PAGE_SIZE` as "no more." Each `FeedPost` also carries `tripId` (from `feed_posts.trip_id`) so the card can navigate to the shared trip-detail screen by trip id. |
 | `format.ts` | `formatDistance` (re-exported from `bearing.ts`) + `formatDuration` + `summarizeDrinkNames` (collapses a trip's `drink_logs.drink_name` rows into "IPA ×2, Stout" for History/Feed cards) + `summarizeDrinksByCompanion` (same, but split per person for `history/index.tsx`'s compact card breakdown — groups by `companion_id`, `null` is the trip owner and shows first as "You", and drops anyone with nothing named). |
 | `trip-detail.ts` | `fetchTripDetail(tripId)` — the full breakdown behind History's and Feed's detail screens: ordered stops (bar, arrival window, per-stop drink summary) plus every tagged companion (unlike `format.ts`'s `summarizeDrinksByCompanion`, a companion with zero named drinks still appears here with `drinkCount: 0` — "who was there" shouldn't disappear just because nobody typed a drink name in). RLS decides who's allowed to see it: the trip owner always, or anyone who can see a feed post built from it (`0003`/`0006`/`0008`). |
 | `errors.ts` | `errorMessage(e, fallback)` — **always use this in catch blocks.** See gotchas below. |
@@ -161,7 +162,7 @@ that (80% statements / 70% branches / 85% functions / 90% lines).
   first, omitting people with no named drinks).
 - `feed.test.ts`'s `fetchFeed` describe block includes a pagination test asserting the default
   `.range(0, FEED_PAGE_SIZE - 1)` call and that a custom `{ offset, limit }` maps through, plus a
-  `tripId` mapping assertion.
+  `tripId` mapping assertion. Also covers `fetchFollowers`' row mapping and its failure path.
 - `trip-detail.test.ts` covers `fetchTripDetail`: stop sorting by `stop_order`, per-stop and
   per-companion drink summaries, a companion appearing with `drinkCount: 0` when they logged
   nothing, preferring a linked app-user's `display_name` over a `guest_name`, and throwing when

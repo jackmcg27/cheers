@@ -150,6 +150,25 @@ export async function fetchFollowingIds(userId: string): Promise<Set<string>> {
   return new Set((data ?? []).map((f) => f.followee_id));
 }
 
+export type Follower = { id: string; displayName: string | null };
+
+/** People who follow `userId` — newest follow first. `follows` has two FKs to `profiles`
+ * (follower_id, followee_id), so the embed must name which one explicitly or PostgREST
+ * rejects it as ambiguous. */
+export async function fetchFollowers(userId: string): Promise<Follower[]> {
+  const { data, error } = await supabase
+    .from('follows')
+    .select('follower_id, created_at, profiles!follower_id(display_name)')
+    .eq('followee_id', userId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+
+  return ((data ?? []) as unknown as {
+    follower_id: string;
+    profiles: { display_name: string | null } | null;
+  }[]).map((row) => ({ id: row.follower_id, displayName: row.profiles?.display_name ?? null }));
+}
+
 export async function follow(followerId: string, followeeId: string) {
   const { error } = await supabase
     .from('follows')

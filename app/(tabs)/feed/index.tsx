@@ -204,6 +204,9 @@ export default function FeedScreen() {
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 76 }]}
         ListHeaderComponent={
           <View style={styles.searchBlock}>
+            <Pressable onPress={() => router.push('/(tabs)/feed/followers')}>
+              <ThemedText style={styles.followersLink}>See your followers</ThemedText>
+            </Pressable>
             <TextInput
               style={styles.input}
               placeholder="Find people to follow"
@@ -304,6 +307,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   list: { paddingHorizontal: 20, gap: 12 },
   searchBlock: { gap: 8, marginBottom: 16 },
+  followersLink: { color: '#0a84ff' },
   input: {
     borderWidth: 1,
     borderColor: '#3a3a3c',

@@ -14,8 +14,9 @@ guard, Feed-card unfollow, places.ts test coverage, delete-trip/delete-post, a f
 pre-existing `feed_posts` RLS infinite-recursion bug (`0006`), per-trip companions /
 drink-tracking-for-others (`0007`), working magic-link/signup-confirmation deep links, a
 forgot/reset-password flow, per-companion drink breakdown on History cards, Feed pagination, and
-tappable History/Feed cards opening a full trip detail view with a companion breakdown (`0008`)
-all added in this session; migrations `0007`/`0008` have been applied to the Supabase project).
+tappable History/Feed cards opening a full trip detail view with a companion breakdown (`0008`),
+and a followers list with a "Follow back" button all added in this session; migrations
+`0007`/`0008` have been applied to the Supabase project).
 
 ## Phase 1 — Core loop ✅ done
 
@@ -88,6 +89,12 @@ all added in this session; migrations `0007`/`0008` have been applied to the Sup
       (fixes an earlier gap where it was never set and everyone showed as "Someone")
 - [x] Delete your own feed post directly from its card (confirm prompt, `lib/feed.ts`'s
       `deletePost`) — also fires if the underlying trip is deleted from History (see Phase 1)
+- [x] Followers list with a "Follow back" button (`app/(tabs)/feed/followers.tsx`, reached via
+      "See your followers" on the Feed tab) — `lib/feed.ts`'s `fetchFollowers` reads `follows`
+      where you're the `followee_id`, joining `profiles!follower_id(display_name)` (the explicit
+      FK alias matters: `follows` has two FKs to `profiles`, so a bare `profiles(...)` embed is
+      ambiguous). Reuses the same `follow`/`unfollow`/`fetchFollowingIds` as the existing
+      search-and-follow flow, so state stays consistent between the two screens
 
 ## Phase 3 — Crawl routes ✅ done
 

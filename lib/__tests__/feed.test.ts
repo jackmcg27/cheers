@@ -7,6 +7,7 @@ import {
   deletePost,
   fetchComments,
   fetchFeed,
+  fetchFollowers,
   fetchFollowingIds,
   follow,
   searchProfiles,
@@ -269,5 +270,33 @@ describe('follows', () => {
     expect(q.delete).toHaveBeenCalled();
     expect(q.eq).toHaveBeenCalledWith('follower_id', 'me');
     expect(q.eq).toHaveBeenCalledWith('followee_id', 'them');
+  });
+
+  it('fetchFollowers maps rows to id/displayName, newest first', async () => {
+    const q = queryResult({
+      data: [
+        { follower_id: 'a', created_at: '2026-01-02T00:00:00Z', profiles: { display_name: 'Alex' } },
+        { follower_id: 'b', created_at: '2026-01-01T00:00:00Z', profiles: null },
+      ],
+      error: null,
+    });
+    mockFrom.mockImplementation((table: string) => {
+      expect(table).toBe('follows');
+      return q;
+    });
+
+    const followers = await fetchFollowers('me');
+
+    expect(followers).toEqual([
+      { id: 'a', displayName: 'Alex' },
+      { id: 'b', displayName: null },
+    ]);
+    expect(q.eq).toHaveBeenCalledWith('followee_id', 'me');
+    expect(q.order).toHaveBeenCalledWith('created_at', { ascending: false });
+  });
+
+  it('fetchFollowers throws on failure', async () => {
+    mockFrom.mockImplementation(() => queryResult({ data: null, error: { message: 'nope' } }));
+    await expect(fetchFollowers('me')).rejects.toEqual({ message: 'nope' });
   });
 });
