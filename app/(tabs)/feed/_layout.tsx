@@ -6,6 +6,7 @@ export default function FeedLayout() {
       <Stack.Screen name="index" options={{ title: 'Feed' }} />
       <Stack.Screen name="[id]" options={{ title: 'Trip' }} />
       <Stack.Screen name="followers" options={{ title: 'Followers' }} />
+      <Stack.Screen name="user/[id]" options={{ title: 'Profile' }} />
     </Stack>
   );
 }

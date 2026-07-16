@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -21,6 +22,7 @@ import { searchBarsByText, type PlaceBar } from '@/lib/places';
 export default function CreateCrawlScreen() {
   const { session } = useAuth();
   const { coords } = useLocation();
+  const insets = useSafeAreaInsets();
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PlaceBar[]>([]);
@@ -92,7 +94,7 @@ export default function CreateCrawlScreen() {
 
   return (
     <ThemedView style={styles.root}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={[styles.container, { paddingBottom: insets.bottom + 76 }]}>
         <TextInput
           style={styles.input}
           placeholder="Crawl name"

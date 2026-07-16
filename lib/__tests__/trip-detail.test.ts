@@ -35,7 +35,7 @@ describe('fetchTripDetail', () => {
           total_duration_s: 7200,
           crawl_id: null,
           photo_url: 'https://cdn.example/trip-1.jpg',
-          profiles: { display_name: 'Jack' },
+          profiles: { display_name: 'Jack', avatar_url: 'https://cdn.example/jack.jpg' },
           trip_stops: [
             {
               id: 'stop-2',
@@ -70,6 +70,7 @@ describe('fetchTripDetail', () => {
 
     expect(detail.ownerId).toBe('u1');
     expect(detail.ownerName).toBe('Jack');
+    expect(detail.ownerAvatarUrl).toBe('https://cdn.example/jack.jpg');
     expect(detail.photoUrl).toBe('https://cdn.example/trip-1.jpg');
     expect(detail.totalDrinks).toBe(3);
     expect(detail.ownDrinkSummary).toBe('IPA ×2');

@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
   revealRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   revealLabel: { fontSize: 13, opacity: 0.75 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
-  arrivedCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  arrivedCenter: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   hint: { opacity: 0.7 },
   distance: { fontSize: 24, fontWeight: '700', color: '#f2c14e', letterSpacing: 0.5 },
   error: { color: '#ff453a' },

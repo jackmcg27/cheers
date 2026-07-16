@@ -53,7 +53,7 @@ describe('fetchFeed', () => {
             caption: 'Great night',
             created_at: '2026-01-01T00:00:00Z',
             user_id: 'author-1',
-            profiles: { display_name: 'Jack' },
+            profiles: { display_name: 'Jack', avatar_url: 'https://cdn.example/jack.jpg' },
             trips: {
               total_duration_s: 3600,
               total_distance_m: 1500,
@@ -84,6 +84,7 @@ describe('fetchFeed', () => {
 
     expect(post.tripId).toBe('trip-1');
     expect(post.authorName).toBe('Jack');
+    expect(post.authorAvatarUrl).toBe('https://cdn.example/jack.jpg');
     expect(post.barNames).toEqual(['Bar A', 'Bar B']); // sorted, null bar dropped
     expect(post.stopCount).toBe(3); // still counts the barless stop
     expect(post.totalDrinks).toBe(5);
@@ -116,6 +117,7 @@ describe('fetchFeed', () => {
     const [post] = await fetchFeed('me');
 
     expect(post.authorName).toBeNull();
+    expect(post.authorAvatarUrl).toBeNull();
     expect(post.barNames).toEqual([]);
     expect(post.stopCount).toBe(0);
     expect(post.totalDrinks).toBe(0);
@@ -197,8 +199,14 @@ describe('fetchComments / addComment', () => {
       expect(table).toBe('post_comments');
       return queryResult({
         data: [
-          { id: 'c1', body: 'nice route', created_at: '2026-01-01T00:00:00Z', profiles: { display_name: 'Jack' } },
-          { id: 'c2', body: 'agreed', created_at: '2026-01-01T00:01:00Z', profiles: null },
+          {
+            id: 'c1',
+            body: 'nice route',
+            created_at: '2026-01-01T00:00:00Z',
+            user_id: 'u1',
+            profiles: { display_name: 'Jack', avatar_url: 'https://cdn.example/jack.jpg' },
+          },
+          { id: 'c2', body: 'agreed', created_at: '2026-01-01T00:01:00Z', user_id: 'u2', profiles: null },
         ],
         error: null,
       });
@@ -207,8 +215,22 @@ describe('fetchComments / addComment', () => {
     const comments = await fetchComments('post-1');
 
     expect(comments).toEqual([
-      { id: 'c1', body: 'nice route', createdAt: '2026-01-01T00:00:00Z', authorName: 'Jack' },
-      { id: 'c2', body: 'agreed', createdAt: '2026-01-01T00:01:00Z', authorName: null },
+      {
+        id: 'c1',
+        body: 'nice route',
+        createdAt: '2026-01-01T00:00:00Z',
+        authorId: 'u1',
+        authorName: 'Jack',
+        authorAvatarUrl: 'https://cdn.example/jack.jpg',
+      },
+      {
+        id: 'c2',
+        body: 'agreed',
+        createdAt: '2026-01-01T00:01:00Z',
+        authorId: 'u2',
+        authorName: null,
+        authorAvatarUrl: null,
+      },
     ]);
   });
 
@@ -232,7 +254,10 @@ describe('searchProfiles', () => {
   });
 
   it('maps profile rows and excludes the current user via the query', async () => {
-    const q = queryResult({ data: [{ id: 'u1', display_name: 'Jack' }], error: null });
+    const q = queryResult({
+      data: [{ id: 'u1', display_name: 'Jack', avatar_url: 'https://cdn.example/jack.jpg' }],
+      error: null,
+    });
     mockFrom.mockImplementation((table: string) => {
       expect(table).toBe('profiles');
       return q;
@@ -240,7 +265,7 @@ describe('searchProfiles', () => {
 
     const results = await searchProfiles('jack', 'me');
 
-    expect(results).toEqual([{ id: 'u1', displayName: 'Jack' }]);
+    expect(results).toEqual([{ id: 'u1', displayName: 'Jack', avatarUrl: 'https://cdn.example/jack.jpg' }]);
     expect(q.ilike).toHaveBeenCalledWith('display_name', '%jack%');
     expect(q.neq).toHaveBeenCalledWith('id', 'me');
   });
@@ -275,7 +300,11 @@ describe('follows', () => {
   it('fetchFollowers maps rows to id/displayName, newest first', async () => {
     const q = queryResult({
       data: [
-        { follower_id: 'a', created_at: '2026-01-02T00:00:00Z', profiles: { display_name: 'Alex' } },
+        {
+          follower_id: 'a',
+          created_at: '2026-01-02T00:00:00Z',
+          profiles: { display_name: 'Alex', avatar_url: 'https://cdn.example/alex.jpg' },
+        },
         { follower_id: 'b', created_at: '2026-01-01T00:00:00Z', profiles: null },
       ],
       error: null,
@@ -288,8 +317,8 @@ describe('follows', () => {
     const followers = await fetchFollowers('me');
 
     expect(followers).toEqual([
-      { id: 'a', displayName: 'Alex' },
-      { id: 'b', displayName: null },
+      { id: 'a', displayName: 'Alex', avatarUrl: 'https://cdn.example/alex.jpg' },
+      { id: 'b', displayName: null, avatarUrl: null },
     ]);
     expect(q.eq).toHaveBeenCalledWith('followee_id', 'me');
     expect(q.order).toHaveBeenCalledWith('created_at', { ascending: false });

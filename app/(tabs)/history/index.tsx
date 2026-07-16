@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AvatarEditor } from '@/components/AvatarEditor';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useAuth } from '@/lib/auth-context';
@@ -52,6 +53,7 @@ export default function HistoryScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [myDisplayName, setMyDisplayName] = useState<string | null>(null);
+  const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
   const [stats, setStats] = useState<MyStats | null>(null);
 
   const [action, setAction] = useState<PendingAction | null>(null);
@@ -103,10 +105,13 @@ export default function HistoryScreen() {
     if (!session) return;
     supabase
       .from('profiles')
-      .select('display_name')
+      .select('display_name, avatar_url')
       .eq('id', session.user.id)
       .single()
-      .then(({ data }) => setMyDisplayName(data?.display_name ?? null));
+      .then(({ data }) => {
+        setMyDisplayName(data?.display_name ?? null);
+        setMyAvatarUrl(data?.avatar_url ?? null);
+      });
   }, [session]);
 
   const loadStats = useCallback(() => {
@@ -198,6 +203,16 @@ export default function HistoryScreen() {
 
   return (
     <ThemedView style={[styles.container, { paddingTop: 16 }]}>
+      {session && (
+        <View style={styles.avatarEditorWrap}>
+          <AvatarEditor
+            userId={session.user.id}
+            displayName={myDisplayName}
+            avatarUrl={myAvatarUrl}
+            onAvatarChange={setMyAvatarUrl}
+          />
+        </View>
+      )}
       <View style={styles.profileRow}>
         <ThemedText style={styles.profileText}>
           {myDisplayName ? `Signed in as ${myDisplayName}` : 'No display name set'}
@@ -392,6 +407,7 @@ export default function HistoryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20 },
+  avatarEditorWrap: { marginBottom: 12 },
   profileRow: {
     flexDirection: 'row',
     alignItems: 'center',

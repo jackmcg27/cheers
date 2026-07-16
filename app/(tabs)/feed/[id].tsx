@@ -3,6 +3,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Avatar } from '@/components/Avatar';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { TripDetailView } from '@/components/TripDetailView';
@@ -84,7 +85,18 @@ export default function FeedTripDetailScreen() {
     <ThemedView style={styles.root}>
       <ScrollView contentContainerStyle={[styles.container, { paddingBottom: insets.bottom + 76 }]}>
         <View style={styles.titleRow}>
-          <ThemedText type="title">{authorName || detail.ownerName || 'Someone'}</ThemedText>
+          <Pressable
+            style={styles.authorTap}
+            disabled={isOwner}
+            onPress={() =>
+              router.push({
+                pathname: '/(tabs)/feed/user/[id]',
+                params: { id: detail.ownerId, displayName: authorName || detail.ownerName || '' },
+              })
+            }>
+            <Avatar avatarUrl={detail.ownerAvatarUrl} displayName={authorName || detail.ownerName} size={36} />
+            <ThemedText type="title">{authorName || detail.ownerName || 'Someone'}</ThemedText>
+          </Pressable>
           {isOwner && postId && (
             <Pressable onPress={confirmDeletePost} disabled={deleting}>
               <ThemedText style={styles.deleteAction}>{deleting ? 'Deleting…' : 'Delete'}</ThemedText>
@@ -119,6 +131,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   container: { padding: 20, gap: 12, paddingBottom: 60 },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  authorTap: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   deleteAction: { color: '#ff453a', opacity: 0.8, fontSize: 13 },
   meta: { opacity: 0.7 },
   caption: { marginBottom: 4 },

@@ -12,6 +12,15 @@
   `supabase gen types` step in this project.
 - When you add a new `lib/*.ts` file with real logic, add a matching test in
   `lib/__tests__/` (see the Testing section of `docs/architecture.md` for the patterns used).
+- **`lib/` must stay at 100% line coverage.** `npm run test:coverage` enforces this via
+  `coverageThreshold.global.lines` in `package.json`'s jest config (`collectCoverageFrom` scopes
+  the measurement to `lib/**/*.{ts,tsx}` only — `app/` screens and `components/*.tsx` have no
+  tests and aren't part of this bar). If you add or change a `lib/*.ts(x)` file, run
+  `npm run test:coverage` before finishing and add whatever test cases are needed to keep every
+  line covered — including files that only get exercised by a real (unmocked) import, like a
+  client/singleton module; see `lib/__tests__/supabase.test.ts` for that pattern
+  (`jest.resetModules()` + `require()` inside the test, with `@react-native-async-storage/async-storage`
+  swapped for its bundled jest mock).
 - Expo/React Native APIs change quickly between SDK versions. Check `package.json`'s `expo`
   version and read the versioned docs for that exact version at
   `https://docs.expo.dev/versions/v<major>.0.0/` before assuming an API from training data is

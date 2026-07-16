@@ -3,6 +3,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Avatar } from '@/components/Avatar';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useAuth } from '@/lib/auth-context';
@@ -197,6 +198,10 @@ export default function FeedScreen() {
     });
   }
 
+  function openProfile(id: string, displayName: string | null) {
+    router.push({ pathname: '/(tabs)/feed/user/[id]', params: { id, displayName: displayName ?? '' } });
+  }
+
   return (
     <ThemedView style={[styles.root, { paddingTop: 12 }]}>
       <FlatList
@@ -221,7 +226,10 @@ export default function FeedScreen() {
             />
             {results.map((p) => (
               <View key={p.id} style={styles.resultRow}>
-                <ThemedText style={styles.resultName}>{p.displayName ?? 'Someone'}</ThemedText>
+                <Pressable style={[styles.resultNameTap, styles.nameTapRow]} onPress={() => openProfile(p.id, p.displayName)}>
+                  <Avatar avatarUrl={p.avatarUrl} displayName={p.displayName} size={28} />
+                  <ThemedText style={styles.resultName}>{p.displayName ?? 'Someone'}</ThemedText>
+                </Pressable>
                 <Pressable style={styles.followButton} onPress={() => handleToggleFollow(p.id)}>
                   <ThemedText style={styles.followButtonText}>
                     {followingIds.has(p.id) ? 'Following' : 'Follow'}
@@ -243,7 +251,10 @@ export default function FeedScreen() {
         renderItem={({ item }) => (
           <Pressable style={styles.card} onPress={() => openPost(item)}>
             <View style={styles.authorRow}>
-              <ThemedText type="defaultSemiBold">{item.authorName ?? 'Someone'}</ThemedText>
+              <Pressable style={styles.nameTapRow} onPress={() => openProfile(item.userId, item.authorName)}>
+                <Avatar avatarUrl={item.authorAvatarUrl} displayName={item.authorName} size={28} />
+                <ThemedText type="defaultSemiBold">{item.authorName ?? 'Someone'}</ThemedText>
+              </Pressable>
               {item.userId !== userId && followingIds.has(item.userId) && (
                 <Pressable onPress={() => handleToggleFollow(item.userId)}>
                   <ThemedText style={styles.unfollowBadge}>Following ✕</ThemedText>
@@ -282,10 +293,17 @@ export default function FeedScreen() {
             {expandedPostId === item.id && (
               <View style={styles.commentsBlock}>
                 {(comments[item.id] ?? []).map((c) => (
-                  <ThemedText key={c.id} style={styles.comment}>
-                    <ThemedText type="defaultSemiBold">{c.authorName ?? 'Someone'}: </ThemedText>
-                    {c.body}
-                  </ThemedText>
+                  <View key={c.id} style={styles.commentRow}>
+                    <Pressable onPress={() => openProfile(c.authorId, c.authorName)}>
+                      <Avatar avatarUrl={c.authorAvatarUrl} displayName={c.authorName} size={22} />
+                    </Pressable>
+                    <ThemedText style={styles.comment}>
+                      <ThemedText type="defaultSemiBold" onPress={() => openProfile(c.authorId, c.authorName)}>
+                        {c.authorName ?? 'Someone'}:{' '}
+                      </ThemedText>
+                      {c.body}
+                    </ThemedText>
+                  </View>
                 ))}
                 <View style={styles.commentInputRow}>
                   <TextInput
@@ -322,7 +340,9 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   resultRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  resultName: { flex: 1 },
+  resultNameTap: { flex: 1 },
+  nameTapRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  resultName: {},
   followButton: { backgroundColor: '#0a84ff', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
   followButtonText: { color: '#fff', fontWeight: '600' },
   card: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#3a3a3c', gap: 6 },
@@ -337,7 +357,8 @@ const styles = StyleSheet.create({
   action: { opacity: 0.8 },
   liked: { color: '#ff453a' },
   commentsBlock: { marginTop: 10, gap: 6, borderTopWidth: 1, borderTopColor: '#3a3a3c', paddingTop: 10 },
-  comment: { fontSize: 14 },
+  commentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  comment: { fontSize: 14, flex: 1 },
   commentInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   commentInput: { flex: 1, paddingVertical: 8 },
   send: { color: '#0a84ff', fontWeight: '600' },

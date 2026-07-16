@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -39,6 +40,7 @@ export default function CrawlDetailScreen() {
   const { session } = useAuth();
   const { coords } = useLocation();
   const { startCrawlWithRoute } = useTrip();
+  const insets = useSafeAreaInsets();
   const [crawl, setCrawl] = useState<CrawlDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -212,7 +214,7 @@ export default function CrawlDetailScreen() {
 
   return (
     <ThemedView style={styles.root}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={[styles.container, { paddingBottom: insets.bottom + 76 }]}>
         <ThemedText type="title">{crawl.name}</ThemedText>
         {crawl.creatorName && <ThemedText style={styles.meta}>by {crawl.creatorName}</ThemedText>}
         {crawl.description && <ThemedText style={styles.description}>{crawl.description}</ThemedText>}

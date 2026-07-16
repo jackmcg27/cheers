@@ -9,9 +9,20 @@ you finish (or start) something.
 > Leave the "Known gaps / tech debt" section honest — it's more useful than a checklist that
 > only ever says "done."
 
-Last updated: 2026-07-15 (History pagination, editing a crawl's stop list after publishing, and
-trip photos all added this session and confirmed working end to end on a real device; also added
-deleting your own post from the Feed detail screen, not just its list card).
+Last updated: 2026-07-15 (added profile pictures end to end — Storage bucket/column, upload/
+remove, and an `Avatar` shown everywhere a name already appears; also fixed the Followers tab
+appearing permanently blank, and made author/comment/search-result names tappable throughout
+Feed, linking to a new public profile screen. Tried and reverted a custom in-app circular
+cropper — crashed on-device; back to the native square crop. Fixed the compass screen's
+"arrived" view getting cut off at the bottom once enough companions are added, then swept every
+screen for the same class of bug and fixed three more that were missing the tab-bar-clearance
+bottom padding entirely: crawls/create, crawls/[id], feed/followers. Raised `lib/` line coverage
+to a genuine, enforced 100%: scoped jest's `collectCoverageFrom` to `lib/**/*.{ts,tsx}` explicitly
+(previously the two files no test imported — `auth-context.tsx`, `supabase.ts` — were silently
+excluded from the coverage denominator instead of counting as untested), added
+`auth-context.test.tsx` and `supabase.test.ts` to actually cover them, and raised
+`coverageThreshold.global.lines` from 90 to 100 so it's mechanically enforced going forward; see
+the Testing section of `docs/architecture.md` and the new rule in `AGENTS.md`).
 
 ## Phase 1 — Core loop ✅ done
 
@@ -90,6 +101,22 @@ deleting your own post from the Feed detail screen, not just its list card).
       FK alias matters: `follows` has two FKs to `profiles`, so a bare `profiles(...)` embed is
       ambiguous). Reuses the same `follow`/`unfollow`/`fetchFollowingIds` as the existing
       search-and-follow flow, so state stays consistent between the two screens
+- [x] View another user's public profile (`app/(tabs)/feed/user/[id].tsx`, `lib/profile.ts`) —
+      display name, follower/following counts, a Follow/Following button, their public crawls,
+      and their feed posts. Deliberately doesn't show History's full stats card (total drinks/
+      distance/etc.) since RLS only exposes *all* of a user's trips to themself
+      (`trip_visible_via_feed_post`: visible to others only if posted-to-feed and followed) — a
+      "total" for someone else would silently under-count, so posted trips/public crawls are
+      shown as lists instead, where a partial view is expected. Reached by tapping a name: a
+      Feed card's author, a comment's author, a follow-search result, a Feed post's detail-screen
+      title, or a row on the Followers list
+- [x] Comment author id (`lib/feed.ts`'s `PostComment.authorId`, from `fetchComments`) — needed
+      so comment authors' names can link to the profile screen above, not tracked before
+- [x] Fixed the Followers tab appearing permanently blank (no spinner, no rows, no "No followers
+      yet." fallback) — `followers.tsx`'s `FlatList` passed `refreshing={loading}` without
+      `onRefresh`, which means React Native never mounts the `RefreshControl` at all, so a hung
+      load looked identical to "nothing to show." Fixed by extracting the fetch into a memoized
+      `load` and wiring it to both `useFocusEffect` and `onRefresh`
 
 ## Phase 3 — Crawl routes ✅ done
 
@@ -149,6 +176,25 @@ deleting your own post from the Feed detail screen, not just its list card).
 - [x] Delete your own post from the Feed detail screen, not just its list card — same
       `lib/feed.ts` `deletePost`, gated on `session.user.id === detail.ownerId` and a `postId`
       route param now passed through from `feed/index.tsx`'s `openPost`
+- [x] Profile pictures — one optional avatar per user, uploaded via `expo-image-picker` from
+      `components/AvatarEditor.tsx` (shown on History's own profile header, the only place you
+      can change your own). `lib/avatar.ts`'s `uploadAvatar`/`removeAvatar` write to a public
+      `avatars` Storage bucket under `${userId}/avatar.<ext>` and set/clear
+      `profiles.avatar_url`; `0010_avatars.sql` adds the column, bucket, and owner-only write /
+      public-read `storage.objects` policies, mirroring `0009_trip_photos.sql`'s structure. The
+      byte-sniffing (`sniffImageFormat`) and local-file-read (`readLocalImageBytes`) logic used
+      to be private to `lib/trip-photos.ts`; both are now extracted to shared `lib/image-upload.ts`
+      and reused by both `trip-photos.ts` and `avatar.ts`, same cache-busting-URL and
+      RLS-path-namespacing reasoning as trip photos (see the Gotchas entry in
+      `docs/architecture.md`). `components/Avatar.tsx` (a circular image with an initials
+      fallback when there's no `avatarUrl`) is wired in everywhere a name already shows: Feed
+      card author, comment author, search-result row, Feed detail title, the Followers list, and
+      the public profile screen — each of `FeedPost`/`PostComment`/`ProfileMatch`/`Follower`/
+      `TripDetail`/`UserProfile` picked up an avatar URL field alongside its existing name field.
+      Cropping uses `expo-image-picker`'s native `allowsEditing`/`aspect: [1, 1]` — square, not
+      circular (the OS crop UI has no circular-mask option on either platform). A custom in-app
+      circular cropper was built and tried but crashed on-device, so it was reverted — see the
+      Gotchas entry in `docs/architecture.md` before re-attempting this
 - [ ] Real map widget (route/pins) — currently "Open in Maps" links only, see
       [`docs/architecture.md`](docs/architecture.md) for why
 

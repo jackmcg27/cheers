@@ -23,6 +23,7 @@ export type TripDetail = {
   id: string;
   ownerId: string;
   ownerName: string | null;
+  ownerAvatarUrl: string | null;
   startedAt: string;
   endedAt: string | null;
   totalDistanceM: number | null;
@@ -44,7 +45,7 @@ type TripDetailRow = {
   total_duration_s: number | null;
   crawl_id: string | null;
   photo_url: string | null;
-  profiles: { display_name: string | null } | null;
+  profiles: { display_name: string | null; avatar_url: string | null } | null;
   trip_stops: {
     id: string;
     stop_order: number;
@@ -70,7 +71,7 @@ export async function fetchTripDetail(tripId: string): Promise<TripDetail> {
   const { data, error } = await supabase
     .from('trips')
     .select(
-      'id, user_id, started_at, ended_at, total_distance_m, total_duration_s, crawl_id, photo_url, profiles!user_id(display_name), trip_stops(id, stop_order, arrived_at, left_at, bars(name, address), drink_logs(drink_name, companion_id)), trip_companions(id, guest_name, profiles(display_name))'
+      'id, user_id, started_at, ended_at, total_distance_m, total_duration_s, crawl_id, photo_url, profiles!user_id(display_name, avatar_url), trip_stops(id, stop_order, arrived_at, left_at, bars(name, address), drink_logs(drink_name, companion_id)), trip_companions(id, guest_name, profiles(display_name))'
     )
     .eq('id', tripId)
     .single();
@@ -95,6 +96,7 @@ export async function fetchTripDetail(tripId: string): Promise<TripDetail> {
     id: row.id,
     ownerId: row.user_id,
     ownerName: row.profiles?.display_name ?? null,
+    ownerAvatarUrl: row.profiles?.avatar_url ?? null,
     startedAt: row.started_at,
     endedAt: row.ended_at,
     totalDistanceM: row.total_distance_m,

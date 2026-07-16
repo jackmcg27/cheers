@@ -128,6 +128,8 @@ RLS policies are **additive** — Postgres OR's together every permissive policy
 | Crawl stop list (after publishing) | `lib/crawls.ts` (`replaceCrawlStops`, `upsertBarsAndGetIds`), `app/(tabs)/crawls/[id].tsx` ("Edit Stops" mode) |
 | Trip photos | `lib/trip-photos.ts` (`uploadTripPhoto`, `removeTripPhoto`), `supabase/migrations/0009_trip_photos.sql` (bucket + RLS), `components/TripPhotoEditor.tsx` (upload/remove UI, used by both history and feed detail screens), `components/TripDetailView.tsx` (renders it) |
 | Delete a feed post from its detail screen | `app/(tabs)/feed/[id].tsx` (`confirmDeletePost`, gated on `session.user.id === detail.ownerId` and the `postId` route param), `lib/feed.ts` (`deletePost`) |
+| Another user's profile | `lib/profile.ts` (`fetchUserProfile`, `fetchUserPosts`, `fetchUserCrawls`), `app/(tabs)/feed/user/[id].tsx`, registered in `app/(tabs)/feed/_layout.tsx`. Reached from any tappable name — card author, comment author, search result, feed-detail title, followers row |
+| Profile pictures / avatars | `lib/avatar.ts` (`uploadAvatar`, `removeAvatar`), `lib/image-upload.ts` (shared byte-sniffing/local-file-read, also used by `trip-photos.ts`), `supabase/migrations/0010_avatars.sql` (bucket + RLS), `components/AvatarEditor.tsx` (upload/remove UI, History's own profile header only, native square crop via `expo-image-picker`'s `allowsEditing`), `components/Avatar.tsx` (display, wired in wherever a name shows) |
 
 ## Testing
 
@@ -139,11 +141,16 @@ npm run test:coverage   # once, with a coverage report
 
 Tests live next to what they test, in `lib/__tests__/`. Coverage is deliberately scoped to
 what's cheap and high-value to test in isolation, not the whole app — see the "Not covered"
-note below. As of this writing every `lib/` file is at 100% line and function coverage (~95%
-statements / ~81% branches — the remaining branch gaps are early-return/error-object shapes
-that would need near-duplicate test cases to close, not worth it for the marginal safety);
-`package.json`'s `jest.coverageThreshold` fails the build if it drops meaningfully below 80%
-statements / 70% branches / 85% functions / 90% lines.
+note below. `package.json`'s jest config sets `collectCoverageFrom: ["lib/**/*.{ts,tsx}"]`, so
+the percentages below are `lib/` only; `app/` screens and `components/*.tsx` aren't measured at
+all (see "Not covered"). Every `lib/` file is required to stay at **100% line coverage** — this
+is a hard rule, not a target: `jest.coverageThreshold.global.lines` is set to `100` and fails
+`npm run test:coverage`/CI if any line in `lib/` goes untested. (Function coverage is also
+incidentally 100% today; statements ~95% and branches ~81% are left at their lower thresholds —
+80%/70% — since the remaining gaps are early-return/error-object shapes that would need
+near-duplicate test cases to close, not worth it for the marginal safety.) If you add or touch a
+`lib/*.ts(x)` file, run `npm run test:coverage` before finishing and close any line gap it
+reports — see [`AGENTS.md`](../AGENTS.md) for the exact rule.
 
 - `bearing.test.ts`, `format.test.ts`, `errors.test.ts`, `deep-link.test.ts` — pure functions, no mocking.
 - `places.test.ts` — mocks `global.fetch`; covers request shape, response mapping, missing-API-key
@@ -184,6 +191,21 @@ statements / 70% branches / 85% functions / 90% lines.
   `load()` calls `jest.resetModules()` for state isolation, which would hand the hook a second,
   freshly-required copy of the `react` module that doesn't match the one `react-test-renderer`
   already has cached, tripping an "Invalid hook call" error.
+- `auth-context.test.tsx` covers `AuthProvider`/`useAuth()` the same
+  `react-test-renderer`-harness way as `trip-context.test.tsx`: session bootstrap via
+  `supabase.auth.getSession`, live updates via the `onAuthStateChange` callback (captured off the
+  mock and invoked manually), and deep-link session recovery via both `Linking.getInitialURL`
+  (initial cold-start URL) and `Linking.addEventListener('url', ...)` (a live link while the app
+  is running) — including the `type === 'recovery'` branch that flips `passwordRecovery`.
+- `supabase.test.ts` is the one test that intentionally does **not** mock `lib/supabase.ts`
+  itself — it's the only way to cover the module's own top-level code (the missing-env-var throw,
+  and the `createClient(...)` call), since every other test mocks `../supabase` away entirely and
+  never actually executes it. It mocks `@react-native-async-storage/async-storage` with the
+  package's own bundled `jest/async-storage-mock` (the real native module is `null` under Jest,
+  otherwise `import AsyncStorage from '@react-native-async-storage/async-storage'` throws), then
+  uses `jest.resetModules()` + `require('../supabase')` inside each test (not a static `import`)
+  so it can flip `process.env.EXPO_PUBLIC_SUPABASE_URL`/`_PUBLISHABLE_KEY` between the
+  missing-env and present-env cases and get a fresh module evaluation each time.
 
 **Not covered**, intentionally — these need real component-rendering infra
 (`@testing-library/react-native` + native-module mocks for `expo-location`/`expo-router`) that
@@ -293,3 +315,36 @@ has hit that class of bug more than once, see the Gotchas below).
   delete a photo, add a new one, the *old* photo reappears). `uploadTripPhoto` appends `?v=` +
   a timestamp to the URL it stores on `trips.photo_url`; `removeTripPhoto`'s `pathFromPublicUrl`
   strips that query string back off before deriving the storage path to delete.
+- **The byte-sniffing and local-file-read helpers above live in `lib/image-upload.ts`, not
+  `lib/trip-photos.ts`.** `lib/avatar.ts` needed the exact same `sniffImageFormat`/
+  `readLocalImageBytes` logic for the `avatars` bucket (`0010_avatars.sql`, same
+  `${userId}/avatar.<ext>` path-namespacing and `?v=` cache-busting as trip photos), so both
+  gotchas above apply there too. If a third upload flow needs this, extend the shared module
+  rather than re-copying it a second time.
+- **A custom in-app circular cropper (`react-native-gesture-handler` pinch/pan under a clipped
+  circle + `expo-image-manipulator` crop) was tried for avatar cropping and reverted** — it
+  crashed the app on-device. `expo-image-picker`'s native `allowsEditing` crop box is
+  square/rectangular only (no circular mask on either platform), which is a real mismatch since
+  avatars render as circles, but the custom replacement wasn't stable enough to ship. Don't
+  re-attempt this without testing on a real device first (Metro/web-bundle success and `tsc`
+  passing did not catch the crash). `AvatarEditor.tsx` is back to `allowsEditing: true,
+  aspect: [1, 1]`.
+- **`flex: 1` on a `ScrollView`'s `contentContainerStyle` pins its height to the viewport instead
+  of letting it grow with content — anything past one screen just gets clipped, not scrolled.**
+  Hit this on the compass screen's "arrived" phase (`app/(tabs)/index.tsx`, `arrivedCenter`
+  style): it's centered with `justifyContent: 'center'` for the common case (few/no companions),
+  but `flex: 1` combined with that meant adding enough companions to `CompanionsPanel` pushed
+  "Next Bar"/"End Crawl" off the bottom with no way to scroll to them. Fix was `flexGrow: 1`
+  instead of `flex: 1` — grows to fill the viewport when content is short (so centering still
+  works) but keeps growing past it when content is tall (so it scrolls). Same trap applies to
+  any other `ScrollView` in this app that centers short content with `contentContainerStyle`.
+- **Every screen under the tab bar needs `useSafeAreaInsets().bottom` added to its bottom
+  padding, or its own bottom content can end up hidden under the tab bar.** `app/(tabs)/_layout.tsx`
+  sets `tabBarStyle: { position: 'absolute' }` on iOS (for the blur effect to show through), which
+  means the tab bar overlays content instead of reserving space for it in layout — screens that
+  don't compensate get their last button/row sitting under a translucent bar. The established
+  fix, used by most screens, is `paddingBottom: insets.bottom + 76` on the scrollable's
+  `contentContainerStyle` (76 ≈ tab bar height). `crawls/create.tsx`, `crawls/[id].tsx`, and
+  `feed/followers.tsx` were missing this (found during an audit prompted by the `arrivedCenter`
+  bug above) and have been fixed to match; if you add a new screen under `(tabs)`, copy this
+  pattern rather than a bare fixed `paddingBottom`.

@@ -7,6 +7,7 @@ export type FeedPost = {
   createdAt: string;
   userId: string;
   authorName: string | null;
+  authorAvatarUrl: string | null;
   stopCount: number;
   barNames: string[];
   totalDurationS: number | null;
@@ -24,7 +25,7 @@ type FeedPostRow = {
   caption: string | null;
   created_at: string;
   user_id: string;
-  profiles: { display_name: string | null } | null;
+  profiles: { display_name: string | null; avatar_url: string | null } | null;
   trips: {
     total_duration_s: number | null;
     total_distance_m: number | null;
@@ -50,7 +51,7 @@ export async function fetchFeed(
   const { data, error } = await supabase
     .from('feed_posts')
     .select(
-      'id, trip_id, caption, created_at, user_id, profiles!user_id(display_name), trips(total_duration_s, total_distance_m, trip_stops(stop_order, bars(name), drink_logs(drink_name))), post_likes(user_id), post_comments(count)'
+      'id, trip_id, caption, created_at, user_id, profiles!user_id(display_name, avatar_url), trips(total_duration_s, total_distance_m, trip_stops(stop_order, bars(name), drink_logs(drink_name))), post_likes(user_id), post_comments(count)'
     )
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
@@ -68,6 +69,7 @@ export async function fetchFeed(
       createdAt: row.created_at,
       userId: row.user_id,
       authorName: row.profiles?.display_name ?? null,
+      authorAvatarUrl: row.profiles?.avatar_url ?? null,
       stopCount: stops.length,
       barNames: stops.map((s) => s.bars?.name).filter((n): n is string => !!n),
       totalDurationS: row.trips?.total_duration_s ?? null,
@@ -100,12 +102,19 @@ export async function deletePost(postId: string) {
   if (error) throw error;
 }
 
-export type PostComment = { id: string; body: string; createdAt: string; authorName: string | null };
+export type PostComment = {
+  id: string;
+  body: string;
+  createdAt: string;
+  authorId: string;
+  authorName: string | null;
+  authorAvatarUrl: string | null;
+};
 
 export async function fetchComments(postId: string): Promise<PostComment[]> {
   const { data, error } = await supabase
     .from('post_comments')
-    .select('id, body, created_at, profiles!user_id(display_name)')
+    .select('id, body, created_at, user_id, profiles!user_id(display_name, avatar_url)')
     .eq('post_id', postId)
     .order('created_at', { ascending: true });
   if (error) throw error;
@@ -114,12 +123,15 @@ export async function fetchComments(postId: string): Promise<PostComment[]> {
     id: string;
     body: string;
     created_at: string;
-    profiles: { display_name: string | null } | null;
+    user_id: string;
+    profiles: { display_name: string | null; avatar_url: string | null } | null;
   }[]).map((row) => ({
     id: row.id,
     body: row.body,
     createdAt: row.created_at,
+    authorId: row.user_id,
     authorName: row.profiles?.display_name ?? null,
+    authorAvatarUrl: row.profiles?.avatar_url ?? null,
   }));
 }
 
@@ -130,18 +142,18 @@ export async function addComment(postId: string, userId: string, body: string) {
   if (error) throw error;
 }
 
-export type ProfileMatch = { id: string; displayName: string | null };
+export type ProfileMatch = { id: string; displayName: string | null; avatarUrl: string | null };
 
 export async function searchProfiles(query: string, excludeUserId: string): Promise<ProfileMatch[]> {
   if (!query.trim()) return [];
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, display_name')
+    .select('id, display_name, avatar_url')
     .ilike('display_name', `%${query.trim()}%`)
     .neq('id', excludeUserId)
     .limit(20);
   if (error) throw error;
-  return (data ?? []).map((p) => ({ id: p.id, displayName: p.display_name }));
+  return (data ?? []).map((p) => ({ id: p.id, displayName: p.display_name, avatarUrl: p.avatar_url }));
 }
 
 export async function fetchFollowingIds(userId: string): Promise<Set<string>> {
@@ -150,7 +162,7 @@ export async function fetchFollowingIds(userId: string): Promise<Set<string>> {
   return new Set((data ?? []).map((f) => f.followee_id));
 }
 
-export type Follower = { id: string; displayName: string | null };
+export type Follower = { id: string; displayName: string | null; avatarUrl: string | null };
 
 /** People who follow `userId` — newest follow first. `follows` has two FKs to `profiles`
  * (follower_id, followee_id), so the embed must name which one explicitly or PostgREST
@@ -158,15 +170,19 @@ export type Follower = { id: string; displayName: string | null };
 export async function fetchFollowers(userId: string): Promise<Follower[]> {
   const { data, error } = await supabase
     .from('follows')
-    .select('follower_id, created_at, profiles!follower_id(display_name)')
+    .select('follower_id, created_at, profiles!follower_id(display_name, avatar_url)')
     .eq('followee_id', userId)
     .order('created_at', { ascending: false });
   if (error) throw error;
 
   return ((data ?? []) as unknown as {
     follower_id: string;
-    profiles: { display_name: string | null } | null;
-  }[]).map((row) => ({ id: row.follower_id, displayName: row.profiles?.display_name ?? null }));
+    profiles: { display_name: string | null; avatar_url: string | null } | null;
+  }[]).map((row) => ({
+    id: row.follower_id,
+    displayName: row.profiles?.display_name ?? null,
+    avatarUrl: row.profiles?.avatar_url ?? null,
+  }));
 }
 
 export async function follow(followerId: string, followeeId: string) {
