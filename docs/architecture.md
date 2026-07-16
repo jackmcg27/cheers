@@ -72,7 +72,7 @@ The Compass screen (`app/(tabs)/index.tsx`) is the one screen that reads live GP
   debouncing all live in `app/(tabs)/index.tsx` (same split as `feed/index.tsx`'s people-search),
   and it's passed `companions`/`drinkCounts`/search state/callbacks as props.
 - `MockLocationControls.tsx` — dev-only widget, only rendered when `EXPO_PUBLIC_MOCK_LOCATION` is on. See `docs/local-dev-without-a-phone.md`.
-- `ThemedText.tsx`, `ThemedView.tsx`, `ui/IconSymbol.tsx`, `HapticTab.tsx`, `ui/TabBarBackground.tsx` — theme-aware primitives from the original Expo template, reused everywhere.
+- `ThemedText.tsx`, `ThemedView.tsx`, `ThemedTextInput.tsx`, `ui/IconSymbol.tsx`, `HapticTab.tsx`, `ui/TabBarBackground.tsx` — theme-aware primitives from the original Expo template (`ThemedTextInput` added later, same pattern), reused everywhere. **Always use `ThemedTextInput` for any `TextInput`** — never the bare RN one — see the Gotchas entry below.
 
 ## `supabase/migrations/`
 
@@ -226,6 +226,16 @@ has hit that class of bug more than once, see the Gotchas below).
 
 ## Gotchas hit while building this (read before you lose an hour to them)
 
+- **Every `TextInput` in the app used to hardcode `color: '#fff'` with no background of its own.**
+  It only looked right because the surrounding screen used `ThemedView`'s dark-mode background —
+  in light mode the same white text sat on a light background and was unreadable (a real tester
+  hit this on the sign-in/sign-up fields). Fixed by adding `components/ThemedTextInput.tsx`
+  (mirrors `ThemedText`/`ThemedView`: pulls `text` for the input color and `icon` for the
+  placeholder color via `useThemeColor`) and swapping it in everywhere a raw RN `TextInput` was
+  used. **Never add a bare `TextInput` with an explicit text color — use `ThemedTextInput`.** Note
+  button *text* colors (`color: '#fff'` on `buttonText`-style styles) are a different, correct
+  case — those sit on a solid, theme-independent background color (e.g. `#0a84ff`), so they don't
+  need to change with the color scheme.
 - **Compass heading/GPS don't work in a simulator or on web.** Test on a physical device via Expo Go.
 - **Supabase query errors are not `instanceof Error`.** They're plain objects (`PostgrestError`) with a `.message` field. Always catch with `errorMessage(e, 'fallback')` from `lib/errors.ts` — a bare `e instanceof Error ? e.message : 'fallback'` silently swallows the real error and shows a useless generic message. This one bit us for real.
 - **"Could not embed because more than one relationship was found."** Happens embedding `profiles` (or any table reachable via more than one FK path) from another table. Fix: name the FK column explicitly, e.g. `profiles!user_id(display_name)` instead of bare `profiles(display_name)`.

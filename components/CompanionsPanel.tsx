@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { DrinkCounter } from '@/components/DrinkCounter';
 import { ThemedText } from '@/components/ThemedText';
+import { ThemedTextInput } from '@/components/ThemedTextInput';
 import type { TripCompanion } from '@/lib/trip-context';
 import type { ProfileMatch } from '@/lib/feed';
 
@@ -44,10 +45,9 @@ export function CompanionsPanel({
       <ThemedText style={styles.heading}>Who's with you?</ThemedText>
 
       <View style={styles.addRow}>
-        <TextInput
+        <ThemedTextInput
           style={[styles.input, styles.flex]}
           placeholder="Add a friend by name"
-          placeholderTextColor="#888"
           value={guestName}
           onChangeText={setGuestName}
           onSubmitEditing={addGuest}
@@ -58,10 +58,9 @@ export function CompanionsPanel({
         </Pressable>
       </View>
 
-      <TextInput
+      <ThemedTextInput
         style={styles.input}
         placeholder="Or search for a friend on the app"
-        placeholderTextColor="#888"
         value={searchQuery}
         onChangeText={onSearchQueryChange}
       />
@@ -109,7 +108,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    color: '#fff',
   },
   addButton: { backgroundColor: '#0a84ff', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
   addButtonText: { color: '#fff', fontWeight: '600' },

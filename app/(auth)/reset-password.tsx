@@ -1,8 +1,9 @@
 import { Redirect } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 
 import { ThemedText } from '@/components/ThemedText';
+import { ThemedTextInput } from '@/components/ThemedTextInput';
 import { ThemedView } from '@/components/ThemedView';
 import { useAuth } from '@/lib/auth-context';
 import { errorMessage } from '@/lib/errors';
@@ -50,18 +51,16 @@ export default function ResetPassword() {
       <ThemedText type="title">Set a new password</ThemedText>
       <ThemedText style={styles.subtitle}>Choose a new password for your account.</ThemedText>
 
-      <TextInput
+      <ThemedTextInput
         style={styles.input}
         placeholder="New password"
-        placeholderTextColor="#888"
         secureTextEntry
         value={password}
         onChangeText={setPassword}
       />
-      <TextInput
+      <ThemedTextInput
         style={styles.input}
         placeholder="Confirm new password"
-        placeholderTextColor="#888"
         secureTextEntry
         value={confirm}
         onChangeText={setConfirm}
@@ -85,7 +84,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: '#fff',
   },
   button: { backgroundColor: '#0a84ff', borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 8 },
   disabled: { opacity: 0.5 },

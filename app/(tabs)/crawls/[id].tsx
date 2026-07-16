@@ -8,12 +8,12 @@ import {
   ScrollView,
   StyleSheet,
   Switch,
-  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/ThemedText';
+import { ThemedTextInput } from '@/components/ThemedTextInput';
 import { ThemedView } from '@/components/ThemedView';
 import { useLocation } from '@/hooks/useLocation';
 import { useAuth } from '@/lib/auth-context';
@@ -256,10 +256,9 @@ export default function CrawlDetailScreen() {
               </View>
             ))}
 
-            <TextInput
+            <ThemedTextInput
               style={styles.input}
               placeholder="Search bars to add..."
-              placeholderTextColor="#888"
               value={stopQuery}
               onChangeText={setStopQuery}
             />
@@ -318,17 +317,15 @@ export default function CrawlDetailScreen() {
         <View style={styles.modalBackdrop}>
           <ThemedView style={styles.modalCard}>
             <ThemedText type="subtitle">Edit Crawl</ThemedText>
-            <TextInput
+            <ThemedTextInput
               style={styles.input}
               placeholder="Crawl name"
-              placeholderTextColor="#888"
               value={editName}
               onChangeText={setEditName}
             />
-            <TextInput
+            <ThemedTextInput
               style={styles.input}
               placeholder="Description (optional)"
-              placeholderTextColor="#888"
               value={editDescription}
               onChangeText={setEditDescription}
             />
@@ -401,7 +398,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: '#fff',
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 20, marginTop: 4 },

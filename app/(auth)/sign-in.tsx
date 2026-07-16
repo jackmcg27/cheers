@@ -1,9 +1,10 @@
 import * as Linking from 'expo-linking';
 import { Redirect } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/ThemedText';
+import { ThemedTextInput } from '@/components/ThemedTextInput';
 import { ThemedView } from '@/components/ThemedView';
 import { useAuth } from '@/lib/auth-context';
 import { errorMessage } from '@/lib/errors';
@@ -71,26 +72,23 @@ export default function SignIn() {
       <ThemedText type="title">Cheers</ThemedText>
       <ThemedText style={styles.subtitle}>Sign in to start a crawl</ThemedText>
 
-      <TextInput
+      <ThemedTextInput
         style={styles.input}
         placeholder="Display name (for Sign Up — shown to friends)"
-        placeholderTextColor="#888"
         value={displayName}
         onChangeText={setDisplayName}
       />
-      <TextInput
+      <ThemedTextInput
         style={styles.input}
         placeholder="Email"
-        placeholderTextColor="#888"
         autoCapitalize="none"
         keyboardType="email-address"
         value={email}
         onChangeText={setEmail}
       />
-      <TextInput
+      <ThemedTextInput
         style={styles.input}
         placeholder="Password"
-        placeholderTextColor="#888"
         secureTextEntry
         value={password}
         onChangeText={setPassword}
@@ -133,7 +131,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: '#fff',
   },
   row: { flexDirection: 'row', gap: 12, marginTop: 8 },
   button: { flex: 1, backgroundColor: '#0a84ff', borderRadius: 10, padding: 14, alignItems: 'center' },

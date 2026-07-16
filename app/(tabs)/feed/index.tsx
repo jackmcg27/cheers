@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/Avatar';
 import { ThemedText } from '@/components/ThemedText';
+import { ThemedTextInput } from '@/components/ThemedTextInput';
 import { ThemedView } from '@/components/ThemedView';
 import { useAuth } from '@/lib/auth-context';
 import { errorMessage } from '@/lib/errors';
@@ -217,10 +218,9 @@ export default function FeedScreen() {
             <Pressable onPress={() => router.push('/(tabs)/feed/followers')}>
               <ThemedText style={styles.followersLink}>See your followers</ThemedText>
             </Pressable>
-            <TextInput
+            <ThemedTextInput
               style={styles.input}
               placeholder="Find people to follow"
-              placeholderTextColor="#888"
               value={query}
               onChangeText={setQuery}
             />
@@ -306,10 +306,9 @@ export default function FeedScreen() {
                   </View>
                 ))}
                 <View style={styles.commentInputRow}>
-                  <TextInput
+                  <ThemedTextInput
                     style={[styles.input, styles.commentInput]}
                     placeholder="Add a comment..."
-                    placeholderTextColor="#888"
                     value={draft}
                     onChangeText={setDraft}
                   />
@@ -337,7 +336,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: '#fff',
   },
   resultRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   resultNameTap: { flex: 1 },
