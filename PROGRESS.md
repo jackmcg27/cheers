@@ -9,7 +9,16 @@ you finish (or start) something.
 > Leave the "Known gaps / tech debt" section honest — it's more useful than a checklist that
 > only ever says "done."
 
-Last updated: 2026-07-15 (added profile pictures end to end — Storage bucket/column, upload/
+Last updated: 2026-07-16 (fixed white, unreadable `TextInput` text in light mode — every text
+field in the app hardcoded `color: '#fff'` with no explicit background, so it was only readable
+against the dark-mode background. Added `components/ThemedTextInput.tsx`, following the existing
+`ThemedText`/`ThemedView` pattern, and swapped it in for every `TextInput` across the app:
+`sign-in.tsx`, `reset-password.tsx`, `history/index.tsx`, `feed/index.tsx`, `crawls/create.tsx`,
+`crawls/[id].tsx`, `CompanionsPanel.tsx`, `DrinkCounter.tsx`. Button text left as hardcoded white —
+those sit on solid-colored backgrounds that don't change with theme, so they were never actually
+broken.)
+
+Previously (2026-07-15): added profile pictures end to end — Storage bucket/column, upload/
 remove, and an `Avatar` shown everywhere a name already appears; also fixed the Followers tab
 appearing permanently blank, and made author/comment/search-result names tappable throughout
 Feed, linking to a new public profile screen. Tried and reverted a custom in-app circular

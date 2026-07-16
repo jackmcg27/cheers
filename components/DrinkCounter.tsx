@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/ThemedText';
+import { ThemedTextInput } from '@/components/ThemedTextInput';
 
 type Props = {
   count: number;
@@ -26,10 +27,9 @@ export function DrinkCounter({ count, onAdd, label }: Props) {
           <ThemedText style={styles.buttonText}>+ Drink</ThemedText>
         </Pressable>
       </View>
-      <TextInput
+      <ThemedTextInput
         style={styles.input}
         placeholder="Drink type (optional, e.g. IPA)"
-        placeholderTextColor="#888"
         value={name}
         onChangeText={setName}
         onSubmitEditing={add}
@@ -51,7 +51,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    color: '#fff',
     width: 220,
     fontSize: 13,
     textAlign: 'center',

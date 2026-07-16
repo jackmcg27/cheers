@@ -8,13 +8,13 @@ import {
   Pressable,
   StyleSheet,
   Switch,
-  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AvatarEditor } from '@/components/AvatarEditor';
 import { ThemedText } from '@/components/ThemedText';
+import { ThemedTextInput } from '@/components/ThemedTextInput';
 import { ThemedView } from '@/components/ThemedView';
 import { useAuth } from '@/lib/auth-context';
 import { publishTripAsCrawl } from '@/lib/crawls';
@@ -341,10 +341,9 @@ export default function HistoryScreen() {
             </ThemedText>
 
             {action?.type === 'post' && (
-              <TextInput
+              <ThemedTextInput
                 style={styles.input}
                 placeholder="Caption (optional)"
-                placeholderTextColor="#888"
                 value={caption}
                 onChangeText={setCaption}
                 multiline
@@ -352,17 +351,15 @@ export default function HistoryScreen() {
             )}
             {action?.type === 'crawl' && (
               <>
-                <TextInput
+                <ThemedTextInput
                   style={styles.input}
                   placeholder="Crawl name"
-                  placeholderTextColor="#888"
                   value={crawlName}
                   onChangeText={setCrawlName}
                 />
-                <TextInput
+                <ThemedTextInput
                   style={styles.input}
                   placeholder="Description (optional)"
-                  placeholderTextColor="#888"
                   value={crawlDescription}
                   onChangeText={setCrawlDescription}
                 />
@@ -374,10 +371,9 @@ export default function HistoryScreen() {
               </>
             )}
             {action?.type === 'name' && (
-              <TextInput
+              <ThemedTextInput
                 style={styles.input}
                 placeholder="Display name"
-                placeholderTextColor="#888"
                 value={nameDraft}
                 onChangeText={setNameDraft}
               />
@@ -452,7 +448,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: '#fff',
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   error: { color: '#ff453a' },
