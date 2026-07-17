@@ -32,14 +32,14 @@ export default function FeedTripDetailScreen() {
       if (!id) return;
       let cancelled = false;
       setLoading(true);
-      fetchTripDetail(id)
+      fetchTripDetail(id, session?.user.id ?? null)
         .then((data) => !cancelled && setDetail(data))
         .catch((e) => !cancelled && setError(errorMessage(e, 'Failed to load trip')))
         .finally(() => !cancelled && setLoading(false));
       return () => {
         cancelled = true;
       };
-    }, [id])
+    }, [id, session])
   );
 
   if (loading) {

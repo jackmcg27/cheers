@@ -60,14 +60,27 @@ export type Database = {
           total_duration_s: number | null;
           photo_url: string | null;
           created_at: string;
+          target_bar_id: string | null;
+          phase: 'traveling' | 'arrived';
+          route_index: number;
         };
-        Insert: { user_id: string; crawl_id?: string | null; started_at?: string };
+        Insert: {
+          user_id: string;
+          crawl_id?: string | null;
+          started_at?: string;
+          target_bar_id?: string | null;
+          phase?: 'traveling' | 'arrived';
+          route_index?: number;
+        };
         Update: {
           crawl_id?: string | null;
           ended_at?: string | null;
           total_distance_m?: number | null;
           total_duration_s?: number | null;
           photo_url?: string | null;
+          target_bar_id?: string | null;
+          phase?: 'traveling' | 'arrived';
+          route_index?: number;
         };
         Relationships: [
           {
@@ -75,6 +88,13 @@ export type Database = {
             columns: ['crawl_id'];
             isOneToOne: false;
             referencedRelation: 'crawls';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'trips_target_bar_id_fkey';
+            columns: ['target_bar_id'];
+            isOneToOne: false;
+            referencedRelation: 'bars';
             referencedColumns: ['id'];
           },
         ];
@@ -140,9 +160,22 @@ export type Database = {
         ];
       };
       trip_companions: {
-        Row: { id: string; trip_id: string; user_id: string | null; guest_name: string | null; created_at: string };
-        Insert: { trip_id: string; user_id?: string | null; guest_name?: string | null };
-        Update: never;
+        Row: {
+          id: string;
+          trip_id: string;
+          user_id: string | null;
+          guest_name: string | null;
+          status: 'pending' | 'accepted' | 'declined';
+          hidden_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          trip_id: string;
+          user_id?: string | null;
+          guest_name?: string | null;
+          status?: 'pending' | 'accepted' | 'declined';
+        };
+        Update: { status?: 'pending' | 'accepted' | 'declined'; hidden_at?: string | null };
         Relationships: [
           {
             foreignKeyName: 'trip_companions_trip_id_fkey';
@@ -293,7 +326,12 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      active_host_trip: {
+        Args: Record<string, never>;
+        Returns: { companion_id: string; host_name: string | null; trip_id: string }[];
+      };
+    };
   };
 };
 

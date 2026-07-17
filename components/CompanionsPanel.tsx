@@ -11,6 +11,9 @@ type Props = {
   companions: TripCompanion[];
   drinkCounts: Record<string, number>;
   showDrinkCounters: boolean;
+  /** Roster management (add/remove) is host-only at the RLS layer — hide those controls for an
+   * attached companion instead of showing affordances that would just fail. */
+  isHost: boolean;
   searchQuery: string;
   onSearchQueryChange: (value: string) => void;
   searchResults: ProfileMatch[];
@@ -24,6 +27,7 @@ export function CompanionsPanel({
   companions,
   drinkCounts,
   showDrinkCounters,
+  isHost,
   searchQuery,
   onSearchQueryChange,
   searchResults,
@@ -44,34 +48,38 @@ export function CompanionsPanel({
     <View style={styles.container}>
       <ThemedText style={styles.heading}>Who's with you?</ThemedText>
 
-      <View style={styles.addRow}>
-        <ThemedTextInput
-          style={[styles.input, styles.flex]}
-          placeholder="Add a friend by name"
-          value={guestName}
-          onChangeText={setGuestName}
-          onSubmitEditing={addGuest}
-          returnKeyType="done"
-        />
-        <Pressable style={styles.addButton} onPress={addGuest}>
-          <ThemedText style={styles.addButtonText}>Add</ThemedText>
-        </Pressable>
-      </View>
+      {isHost && (
+        <>
+          <View style={styles.addRow}>
+            <ThemedTextInput
+              style={[styles.input, styles.flex]}
+              placeholder="Add a friend by name"
+              value={guestName}
+              onChangeText={setGuestName}
+              onSubmitEditing={addGuest}
+              returnKeyType="done"
+            />
+            <Pressable style={styles.addButton} onPress={addGuest}>
+              <ThemedText style={styles.addButtonText}>Add</ThemedText>
+            </Pressable>
+          </View>
 
-      <ThemedTextInput
-        style={styles.input}
-        placeholder="Or search for a friend on the app"
-        value={searchQuery}
-        onChangeText={onSearchQueryChange}
-      />
-      {searchResults.map((p) => (
-        <View key={p.id} style={styles.resultRow}>
-          <ThemedText style={styles.flex}>{p.displayName ?? 'Someone'}</ThemedText>
-          <Pressable style={styles.addButton} onPress={() => onAddUser(p.id)}>
-            <ThemedText style={styles.addButtonText}>Add</ThemedText>
-          </Pressable>
-        </View>
-      ))}
+          <ThemedTextInput
+            style={styles.input}
+            placeholder="Or search for a friend on the app"
+            value={searchQuery}
+            onChangeText={onSearchQueryChange}
+          />
+          {searchResults.map((p) => (
+            <View key={p.id} style={styles.resultRow}>
+              <ThemedText style={styles.flex}>{p.displayName ?? 'Someone'}</ThemedText>
+              <Pressable style={styles.addButton} onPress={() => onAddUser(p.id)}>
+                <ThemedText style={styles.addButtonText}>Add</ThemedText>
+              </Pressable>
+            </View>
+          ))}
+        </>
+      )}
 
       {companions.length > 0 && (
         <View style={styles.list}>
@@ -79,11 +87,17 @@ export function CompanionsPanel({
             <View key={c.id} style={styles.companionCard}>
               <View style={styles.companionHeader}>
                 <ThemedText type="defaultSemiBold">{c.name}</ThemedText>
-                <Pressable onPress={() => onRemove(c.id)}>
-                  <ThemedText style={styles.remove}>Remove</ThemedText>
-                </Pressable>
+                {isHost && (
+                  <Pressable onPress={() => onRemove(c.id)}>
+                    <ThemedText style={styles.remove}>Remove</ThemedText>
+                  </Pressable>
+                )}
               </View>
-              {showDrinkCounters && (
+              {c.status === 'pending' && (
+                <ThemedText style={styles.statusPending}>Invite sent — waiting for them to accept</ThemedText>
+              )}
+              {c.status === 'declined' && <ThemedText style={styles.statusDeclined}>Invite declined</ThemedText>}
+              {showDrinkCounters && c.status === 'accepted' && (
                 <DrinkCounter
                   count={drinkCounts[c.id] ?? 0}
                   onAdd={(name) => onAddDrink(c.id, name)}
@@ -123,4 +137,6 @@ const styles = StyleSheet.create({
   },
   companionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' },
   remove: { color: '#ff453a', fontSize: 12, opacity: 0.85 },
+  statusPending: { fontSize: 12, opacity: 0.7 },
+  statusDeclined: { fontSize: 12, color: '#ff453a', opacity: 0.85 },
 });

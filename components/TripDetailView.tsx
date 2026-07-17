@@ -21,17 +21,20 @@ export function TripDetailView({ detail }: { detail: TripDetail }) {
         {detail.totalDistanceM ? formatDistance(detail.totalDistanceM) : '—'}
       </ThemedText>
 
-      {(detail.companions.length > 0 || detail.ownDrinkSummary) && (
+      {(detail.companions.length > 0 || detail.viewerInvolved) && (
         <View style={styles.section}>
           <ThemedText type="subtitle" style={styles.sectionTitle}>
             Who was there
           </ThemedText>
-          <View style={styles.companionRow}>
-            <ThemedText type="defaultSemiBold">You</ThemedText>
-            <ThemedText style={styles.companionDrinks}>
-              {detail.ownDrinkSummary ?? 'No drinks logged'}
-            </ThemedText>
-          </View>
+          {detail.viewerInvolved && (
+            <View style={styles.companionRow}>
+              <ThemedText type="defaultSemiBold">You</ThemedText>
+              <ThemedText style={styles.companionDrinks}>
+                {detail.ownDrinkSummary ??
+                  (detail.ownDrinkCount > 0 ? `${detail.ownDrinkCount} drinks` : 'No drinks logged')}
+              </ThemedText>
+            </View>
+          )}
           {detail.companions.map((c) => (
             <View key={c.id} style={styles.companionRow}>
               <ThemedText type="defaultSemiBold">{c.label}</ThemedText>

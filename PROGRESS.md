@@ -9,14 +9,173 @@ you finish (or start) something.
 > Leave the "Known gaps / tech debt" section honest — it's more useful than a checklist that
 > only ever says "done."
 
-Last updated: 2026-07-16 (fixed white, unreadable `TextInput` text in light mode — every text
+Last updated: 2026-07-16 (two more bugs found manually testing companion joining, both fixed: (1)
+a viewer's own drink tally on the trip detail screen (`TripDetailView.tsx`'s "You" row) always
+showed "No drinks logged", even when they'd logged drinks with no name typed in — `fetchTripDetail`
+only ever exposed `ownDrinkSummary` (`null` whenever nothing was *named*, per `summarizeDrinkNames`,
+even though the drinks were still counted), with no count to fall back to. Every other person's row
+already had this fallback (`TripDetailCompanion.drinkCount`), just not the viewer's own. Added
+`TripDetail.ownDrinkCount` alongside `ownDrinkSummary` and used the same `drinkSummary ?? (count > 0
+? "N drinks" : "No drinks logged")` pattern for the "You" row. (2) Accepting a companion invite
+dropped straight into the "arrived" screen instead of "traveling to bar" — traced this to the
+Phase 3 design itself, not a bug: a companion's device mirrors the host's live `phase` exactly
+(see the 2026-07-16 Phase 3 entry below), and `CompanionsPanel` (where invites get sent) only ever
+renders once `phase === 'arrived'`, so an invite can only be sent — and therefore only ever
+accepted — while the host is already "arrived." Confirmed with the user this shared-phase
+behavior is intentional (you add someone once you're actually together at the bar) and left as-is;
+see the "Known gaps" entry below. Did find and fix one real bug along the way: `revealMode`
+("Surprise Me") was local per-device state never reset by `resetTrip()` or `attachToTrip()`, so a
+stale `true` from a previous crawl could leak into a new one or into a companion's freshly-attached
+session. Both `resetTrip()` and `attachToTrip()` now reset it to `false`.)
+
+Previously (2026-07-16): companion trips now show up in a companion's own History tab, not just
+the host's — previously `history/index.tsx` queried `trips` filtered to `user_id = me`, so a trip
+you were only tagged on never appeared anywhere in your own History even after `0013` made you a
+full participant on it live. New `lib/history.ts#fetchHistoryPage` unions owned trips with trips
+you're an *accepted* companion on (two round trips — PostgREST has no server-side subquery join —
+first the companion `trip_id`s, then `trips` filtered to `user_id.eq.<me>,id.in.(<ids>)` via
+`.or()`, falling back to a plain owner-only `.eq` when there are no companion trips to avoid
+malformed `id.in.()` syntax). "Delete" was owner-only destructive `trips.delete()` — a companion
+can't get that (RLS wouldn't allow it) and shouldn't: hard-deleting their `trip_companions` row
+would cascade-delete their own `drink_logs` (`0007`'s `on delete cascade`), destroying their drink
+data for the host and everyone else too. Added a soft-unlink instead: `0015_companion_history.sql`
+adds `trip_companions.hidden_at`, settable only by the invitee on their own row (reuses `0011`'s
+existing "invitee can respond to their own invite" policy shape, just a new column grant — no new
+policy needed); `hideCompanionTrip()` sets it, `fetchHistoryPage` filters hidden rows out before
+they're even queried. A non-owner's History card now shows "Remove from my history" (with a
+confirm explaining it only affects their own view) instead of "Delete", and "Post to Feed"/
+"Publish as Crawl" are hidden for non-owners too — deliberately kept to view + unlink for a
+companion's own scope rather than shipping an unreviewed sharing feature; "View Crawl" still
+shows if the trip already has one.
+
+Also fixed the same "You" mislabeling bug (previously fixed once for the live trip view via
+`followingCompanionId`, see the entry below) in the two places that become reachable the moment a
+companion can view a trip they didn't own: `lib/trip-detail.ts`'s `fetchTripDetail` now takes a
+`viewerId` and attributes `ownDrinkSummary`/"You" to whoever's actually looking — the owner's own
+drinks if they own the trip, a companion's own drinks if they're that companion, or nobody's if
+the viewer wasn't on the trip at all (e.g. a Feed follower who never logged a drink there — that
+was *also* silently mislabeled "You" before this fix, an unrelated pre-existing bug caught as a
+byproduct). Added `TripDetail.viewerInvolved` so `TripDetailView.tsx` only renders the "You" row
+when the viewer actually has a stake in the trip; a non-owner viewer's `companions` list gets a
+synthesized `{ id: 'owner', label: <host name> }` entry so the host's drinks don't just disappear.
+Same fix shape in `lib/format.ts`'s `summarizeDrinksByCompanion`, extended with an optional
+`viewerKey` param (defaults to `null` = owner, fully backward compatible) for History's card-level
+per-person breakdown. `history/[id].tsx`'s `TripPhotoEditor` render is now gated on
+`session.user.id === detail.ownerId` (mirroring `feed/[id].tsx`'s existing pattern) since it was
+only ever safe unconditionally while History was owner-only.
+
+Bundled into the same migration: a regression discovered while testing this — `0013`'s
+`revoke update on public.trips from authenticated` narrowed the updatable-column list but missed
+`photo_url` (added by `0009`, before that revoke existed), silently breaking
+`uploadTripPhoto`/`removeTripPhoto` for every trip owner, not just companions, on any project with
+`0013` applied. `0015` adds the missing `grant update (photo_url) ...` alongside the `hidden_at`
+work.)
+
+Previously (2026-07-16): two bugs found manually testing Phase 3 against a real Supabase project,
+both fixed: (1) invites and accept-attach only appeared after switching tabs away and back —
+`useFocusEffect`-driven polling doesn't fire for anything happening while already sitting on the
+Compass tab. Added `subscribeToInviteChanges()` (`lib/companion-invites.ts`), a realtime
+subscription on `trip_companions` filtered to `user_id=eq.<uid>`, kept alive for the life of the
+session (not scoped to a trip, since it has to cover the pre-attachment pending-invite state too)
+and wired to re-run `loadFocusData` on any change; `respond()` in `app/(tabs)/index.tsx` also now
+calls `checkActiveHostTrip()` directly after a successful accept instead of relying solely on the
+realtime round-trip. (2) The top "+drink" counter always showed the host's own count/label "You"
+regardless of who was looking at it, and pressing it from a companion's device would've logged the
+drink under the host's tally (`addDrink(name)` with no `companionId`) instead of the companion's
+own. Exposed `followingCompanionId` from `TripContextValue` (already tracked internally, just not
+surfaced) so the UI can tell host from companion and pick the right count/write target; the top
+counter now reads `companionDrinkCounts[followingCompanionId]` on a companion's device. Since
+`companions` never includes the host (it only tracks people tagged onto the trip), a companion's
+device now synthesizes a `{ id: 'host', name: hostName }` row into the list passed to
+`CompanionsPanel` so the host's count is visible and still incrementable below. While touching
+`CompanionsPanel`, also gated the "Add a friend" controls and each companion's "Remove" button
+behind a new `isHost` prop — both were already silently rejected by RLS for a non-host viewer
+(`addCompanion`/`removeCompanion` stay host-only), so showing them was misleading UI, not a
+functioning feature.)
+
+Previously (2026-07-16): Phase 3 of companion consent: an accepted companion now gets the same
+control options as the host on the host's live trip, not just a dead-end "you're locked out"
+banner. The two real gaps that made this more than a read-only view: (1) in freeform (nearest-bar)
+mode the target bar only ever lived in the host's local React state, nothing was persisted until
+arrival — fixed by persisting `target_bar_id`/`phase`/`route_index` onto `trips` the moment a
+target is chosen, not just at arrival (`0013_companion_trip_parity.sql`); (2) once both host and
+companion can write trip progress, per-device optimistic state can't be trusted alone — added a
+realtime subscription (`0014_trip_realtime.sql`, `trips`/`trip_stops`/`drink_logs`/
+`trip_companions`) that re-derives phase/target/drink-counts/companions from the DB via a new
+`lib/trip-sync.ts#fetchLiveTrip` and applies them through the same setters local optimistic
+updates use, so both parties' screens converge regardless of who made the change. New RLS: a
+`SECURITY DEFINER` `is_active_trip_participant()` helper (mirrors `0011`'s `is_trip_companion`)
+gates new write policies on `trips` UPDATE, `trip_stops` INSERT/UPDATE, `drink_logs` INSERT, plus
+read policies on `crawls`/`crawl_stops` (via `is_active_trip_crawl()`) so a companion following a
+*private* saved crawl can actually read its stops, and a `trip_companions` SELECT policy so an
+accepted companion sees the full roster, not just their own invite row.
+`active_host_trip()` (`0012`) now also returns `trip_id`, so `lib/trip-context.tsx`'s old
+"blocking banner with a Leave button" is gone — the moment `phase === 'idle'` and there's an
+active host trip, the companion's device attaches directly (`checkActiveHostTrip`/`attachToTrip`)
+and moves straight into `traveling`/`arrived`. Companions still can't add/remove other companions
+(`addCompanion`/`removeCompanion` stay host-only — deliberately, kept out of scope). `addCompanion`/
+`removeCompanion` stay host-only — managing the roster is more sensitive than progressing an
+already-agreed-upon crawl. `totalDrinkCount` (feeds `paceWarning`) is deliberately not
+reconciled from the DB, stays local/optimistic only — a companion attaching mid-trip only sees
+pace based on drinks logged after they attached; accepted as a minor known limitation rather than
+adding query complexity to sum all-time company-wide drinks.
+
+Previously (2026-07-16): three bugs found while testing Phase 2 of companion consent, all fixed:
+(1) Signing out left the tab bar and its screens mounted — nothing redirected back to sign-in, so
+`history/index.tsx`'s "Sign out" button (never gated on `session` to begin with) just stayed on
+screen after the rest of that screen's session-gated content disappeared. `app/(tabs)/_layout.tsx`
+now redirects to `/(auth)/sign-in` once `session` goes null. (2) That redirect then surfaced a
+second, previously-latent bug: unmounting the Compass screen runs `hooks/useLocation.ts`'s cleanup,
+which calls `subscription.remove()` — on web, expo-location's `LegacyEventEmitter` returns the raw
+native module instead of a real emitter wrapper, which has no `removeSubscription`, so the call
+always throws on web (nothing had ever unmounted that screen before). Wrapped the cleanup in
+try/catch. (3) `0011_trip_companion_consent.sql`'s new `trips` policy did a raw correlated
+subquery on `trip_companions`, whose own `0007` policy subqueries `trips` right back — the same
+`feed_posts`/`trips` recursion cycle `0006` already fixed once, reintroduced on a different edge.
+Fixed by adding a `SECURITY DEFINER` helper (`is_trip_companion`), same trick as `0006`, editing
+`0011` in place since it hadn't been committed yet. Separately, noticed the host's companion list
+had no way to reflect an invitee's accept/decline at all — `companions` state in
+`lib/trip-context.tsx` only ever grew via local `addCompanion` pushes, nothing re-read from the
+DB. Added `fetchTripCompanions()` (`lib/companion-invites.ts`) and `refreshCompanions()` (trip
+context), polled on every focus of the Compass tab alongside the existing invite/active-host-trip
+polling — not realtime, so the host has to switch tabs away and back to see a status change.)
+
+Previously (2026-07-16): Phase 2 of companion consent: once you've *accepted* an invite onto
+someone else's still-active crawl, `startCrawl`/`startCrawlWithRoute` now block you from starting
+a separate one of your own — a soft lock, enforced client-side rather than by a DB trigger.
+`0012_active_companion_lock.sql` adds a `SECURITY DEFINER` function, `active_host_trip()`, that
+(scoped internally to `auth.uid()`, no parameter a caller could probe another user's status with)
+returns whichever of your own `trip_companions` rows is `status = 'accepted'` on a trip with
+`ended_at is null`, plus the host's display name; `lib/companion-invites.ts` gained
+`fetchActiveHostTrip()` to call it. The Compass screen now shows a persistent banner ("You're on
+X's crawl...") with a Leave button whenever that's the case — "leave" is just declining the
+invite you already accepted (`respondToInvite`, which the invitee can call regardless of the
+row's current status). Also fixed a latent bug in Phase 1's `fetchPendingInvites`: its
+`trips!inner(profiles!user_id(display_name))` embed had no RLS path to the host's `trips` row
+at all (owner-only/feed-visible-only from `0001`/`0006`), so an invite from someone you don't
+follow would've been silently filtered out of the results entirely, not just missing a name —
+added a `trips` select policy for a trip's own companions to `0011` to fix this before it shipped.
+Being locked into the host's *session itself* (route/stops/pace) shipped as Phase 3 — see the
+2026-07-16 entry above.)
+
+Previously (2026-07-16): Phase 1 of companion consent: tagging a linked app-user companion now
+creates a pending invite instead of an instant add — `0011_trip_companion_consent.sql` adds a
+`status` column (`pending`/`accepted`/`declined`, default `accepted` so guest-name companions,
+who have no account to ask, keep the old instant-add behavior) plus RLS/grants so the *invitee*
+can see and respond to their own invite (column-level `grant update (status)` only, so responding
+can't be used to rewrite `trip_id`/`user_id`/`guest_name`). New `lib/companion-invites.ts`
+(`fetchPendingInvites`, `respondToInvite`); Compass screen shows an Accept/Decline banner for
+pending invites addressed to you; `CompanionsPanel.tsx` shows invite status and only renders a
+`DrinkCounter` for an `accepted` companion.
+
+Previously (2026-07-16): fixed white, unreadable `TextInput` text in light mode — every text
 field in the app hardcoded `color: '#fff'` with no explicit background, so it was only readable
 against the dark-mode background. Added `components/ThemedTextInput.tsx`, following the existing
 `ThemedText`/`ThemedView` pattern, and swapped it in for every `TextInput` across the app:
 `sign-in.tsx`, `reset-password.tsx`, `history/index.tsx`, `feed/index.tsx`, `crawls/create.tsx`,
 `crawls/[id].tsx`, `CompanionsPanel.tsx`, `DrinkCounter.tsx`. Button text left as hardcoded white —
 those sit on solid-colored backgrounds that don't change with theme, so they were never actually
-broken.)
+broken.
 
 Previously (2026-07-15): added profile pictures end to end — Storage bucket/column, upload/
 remove, and an `Avatar` shown everywhere a name already appears; also fixed the Followers tab
@@ -66,14 +225,16 @@ the Testing section of `docs/architecture.md` and the new rule in `AGENTS.md`).
 - [x] Companions + drink tracking for other people, per trip (`0007_trip_companions.sql`,
       `lib/trip-context.tsx`'s `companions`/`companionDrinkCounts`/`addCompanion`/
       `removeCompanion`, `components/CompanionsPanel.tsx`) — add anyone once you've arrived at
-      a stop, either an existing app user (free tagging, no follow/consent step — search by
-      display name) or a free-text guest name for a friend who isn't on the app. Each companion
-      gets their own per-stop `DrinkCounter`; companion drinks are tracked in `drink_logs` via a
-      new `companion_id` column but deliberately excluded from the trip owner's own
-      `paceWarning` calculation (that nudge is about personal responsibility, not policing
-      friends). Companions and their drink counts don't persist across trips — same per-trip
-      scope as everything else in `drink_logs` today. The History tab now shows a per-person
-      drink breakdown for any trip that had companions (`lib/format.ts`'s
+      a stop, either an existing app user (search by display name) or a free-text guest name for
+      a friend who isn't on the app. Tagging an app user now creates a pending invite rather than
+      an instant add — see the 2026-07-16 entry above (`0011_trip_companion_consent.sql`,
+      `lib/companion-invites.ts`) — while a guest name is still instant, since there's no account
+      to ask. Each companion gets their own per-stop `DrinkCounter` once accepted; companion
+      drinks are tracked in `drink_logs` via a new `companion_id` column but deliberately excluded
+      from the trip owner's own `paceWarning` calculation (that nudge is about personal
+      responsibility, not policing friends). Companions and their drink counts don't persist
+      across trips — same per-trip scope as everything else in `drink_logs` today. The History
+      tab now shows a per-person drink breakdown for any trip that had companions (`lib/format.ts`'s
       `summarizeDrinksByCompanion`), falling back to the old single-line summary for solo trips
 - [x] Tappable History/Feed cards open a full trip detail screen (stop-by-stop bar list with
       arrival windows and per-stop drinks, plus a "who was there" section) instead of just the
@@ -170,8 +331,8 @@ the Testing section of `docs/architecture.md` and the new rule in `AGENTS.md`).
       drink is logged; dismissing it just clears the current banner, the next drink can
       re-trigger it.
 - [x] History pagination — mirrors Feed's `.range()` + `onEndReached` pattern (`HISTORY_PAGE_SIZE`
-      = 20, `loadTrips`/`loadMoreTrips` in `history/index.tsx`; query stays inline like the rest of
-      that screen rather than moving to `lib/`, same exception noted in `docs/architecture.md`)
+      = 20, `loadTrips`/`loadMoreTrips` in `history/index.tsx`, backed by `lib/history.ts#fetchHistoryPage`
+      now that the query merges owned + companion trips — see the 2026-07-16 entry above)
 - [x] Trip photos — one optional photo per trip, owner-only, uploaded via `expo-image-picker`
       from `components/TripPhotoEditor.tsx` (shared by History's own detail screen and, when
       you're the owner, Feed's detail screen too). `lib/trip-photos.ts`'s
@@ -215,13 +376,26 @@ the Testing section of `docs/architecture.md` and the new rule in `AGENTS.md`).
       `TripProvider`/`useTrip()` via `react-test-renderer`'s `act()` + a capturing harness
       component (no `@testing-library/react-native` needed for a hooks-only test like this),
       same Supabase query-builder mock pattern as `crawls.test.ts`; covers `addCompanion`
-      (guest and app-user paths), `removeCompanion`, and companion-scoped `addDrink` too
-- [x] `format.test.ts` covers `summarizeDrinksByCompanion` (History's per-person breakdown); `deep-link.test.ts`
-      covers the `type` field (`recovery` vs. `magiclink`/absent) used by the password-reset flow;
-      `feed.test.ts` covers `fetchFeed`'s pagination (`.range()` defaults + custom offset/limit)
-      and now `tripId` mapping; `trip-detail.test.ts` covers `fetchTripDetail`'s stop sorting,
-      per-stop/per-companion drink summaries (including a companion with zero drinks still
-      appearing), and preferring an app-user's display name over a guest name
+      (guest and app-user paths), `removeCompanion`, and companion-scoped `addDrink` too. Also
+      covers the Phase 3 realtime sync: a `fakeChannel()` stub captures each
+      `.on('postgres_changes', { table }, cb)` registration by table name so a test can invoke a
+      table's callback directly to simulate a live event, exercising `reconcileTrip`'s three
+      paths (normal reconcile, host-ended-trip auto-reset, fetch failure), the
+      `trip_companions` handler, and `checkActiveHostTrip`/`attachToTrip`/`leaveHostTrip`'s
+      branches
+- [x] `lib/__tests__/trip-sync.test.ts` covers `fetchLiveTrip`'s row mapping (open-stop
+      detection, target-bar mapping, per-companion drink counts, error propagation)
+- [x] `format.test.ts` covers `summarizeDrinksByCompanion`, including the `viewerKey` param that
+      attributes "You" to a companion instead of the owner; `deep-link.test.ts` covers the `type`
+      field (`recovery` vs. `magiclink`/absent) used by the password-reset flow; `feed.test.ts`
+      covers `fetchFeed`'s pagination (`.range()` defaults + custom offset/limit) and now `tripId`
+      mapping; `trip-detail.test.ts` covers `fetchTripDetail`'s stop sorting, per-stop/per-companion
+      drink summaries (including a companion with zero drinks still appearing), preferring an
+      app-user's display name over a guest name, and the viewer-identity branches (owner, attached
+      companion, and an uninvolved viewer with no "You" row); `history.test.ts` covers
+      `fetchHistoryPage`'s owner-only vs. `.or()`-unioned query shapes, its row mapping (owner vs.
+      companion viewer, the synthesized `{ id: 'owner', ... }` entry, excluding the viewer's own
+      companion entry), `hasMore`, and `hideCompanionTrip`
 - [x] 100% line and function coverage on every file in `lib/` — closed the remaining gaps in
       `trip-context.test.tsx` (`startCrawlWithRoute`'s insert failure, `addDrink`'s insert-error
       path, `nextBar`'s freeform catch-on-throw, `endCrawl`'s multi-stop distance loop, which the
@@ -244,6 +418,26 @@ the Testing section of `docs/architecture.md` and the new rule in `AGENTS.md`).
 
 ## Known gaps / tech debt
 
+- A companion's device always mirrors the host's shared `phase` exactly (see Phase 3 above), so
+  accepting an invite drops you straight into whatever phase the host is currently in — almost
+  always `arrived`, since `CompanionsPanel` (where invites are sent from) only renders once the
+  host has already arrived at a stop. Confirmed with the user (2026-07-16) this is intentional,
+  not a bug: you add a companion once you're actually together at the bar. A "true" fix (tracking
+  each companion's own arrival separately from the host's) would be a materially larger feature,
+  not a small correction, and was explicitly deferred.
+- Companions still can't manage the roster (`addCompanion`/`removeCompanion` stay host-only, and
+  the UI now hides those controls entirely on a companion's device) — deliberate scope cut in
+  Phase 3, not a gap to close casually: letting an attached companion add or remove other
+  companions is a materially more sensitive action than progressing an already-agreed-upon crawl.
+- `paceWarning`'s underlying `totalDrinkCount` is local/optimistic only, not reconciled from the
+  DB on realtime events — a companion who attaches mid-trip only sees pace based on drinks logged
+  after they attached, not the host's full running total. Would need summing all-time
+  company-wide drinks server-side to fix; not worth the query complexity for a nudge banner.
+- Realtime `drink_logs` events aren't filtered server-side to the current trip (the table has no
+  `trip_id` column, only `trip_stop_id`) — every client subscribed to any trip gets every
+  `drink_logs` change and does a full `reconcileTrip` re-fetch to figure out if it mattered.
+  Harmless (RLS still scopes what `fetchLiveTrip` can actually read back) but slightly wasteful
+  at scale.
 - `crawls` has no `updated_at`/edit history.
 - No push notifications — realtime feed updates only fire while the Feed tab is open and
   mounted.

@@ -20,35 +20,18 @@ import { useAuth } from '@/lib/auth-context';
 import { publishTripAsCrawl } from '@/lib/crawls';
 import { errorMessage } from '@/lib/errors';
 import { formatDistance, formatDuration, summarizeDrinkNames, summarizeDrinksByCompanion } from '@/lib/format';
+import { fetchHistoryPage, hideCompanionTrip, type HistoryTrip } from '@/lib/history';
 import { fetchMyStats, type MyStats } from '@/lib/stats';
 import { supabase } from '@/lib/supabase';
-
-type TripSummary = {
-  id: string;
-  started_at: string;
-  ended_at: string | null;
-  total_distance_m: number | null;
-  total_duration_s: number | null;
-  crawl_id: string | null;
-  trip_stops: { drink_logs: { drink_name: string | null; companion_id: string | null }[] }[];
-  trip_companions: {
-    id: string;
-    guest_name: string | null;
-    profiles: { display_name: string | null } | null;
-  }[];
-};
 
 type PendingAction = { type: 'post' | 'crawl'; tripId: string } | { type: 'name' };
 
 const HISTORY_PAGE_SIZE = 20;
 
-const TRIP_SUMMARY_SELECT =
-  'id, started_at, ended_at, total_distance_m, total_duration_s, crawl_id, trip_stops(drink_logs(drink_name, companion_id)), trip_companions(id, guest_name, profiles(display_name))';
-
 export default function HistoryScreen() {
   const { session } = useAuth();
   const insets = useSafeAreaInsets();
-  const [trips, setTrips] = useState<TripSummary[]>([]);
+  const [trips, setTrips] = useState<HistoryTrip[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -68,37 +51,23 @@ export default function HistoryScreen() {
   const loadTrips = useCallback(() => {
     if (!session) return;
     setLoading(true);
-    supabase
-      .from('trips')
-      .select(TRIP_SUMMARY_SELECT)
-      .eq('user_id', session.user.id)
-      .not('ended_at', 'is', null)
-      .order('started_at', { ascending: false })
-      .range(0, HISTORY_PAGE_SIZE - 1)
-      .then(({ data }) => {
-        const page = (data as unknown as TripSummary[]) ?? [];
+    fetchHistoryPage(session.user.id, 0, HISTORY_PAGE_SIZE)
+      .then(({ trips: page, hasMore: more }) => {
         setTrips(page);
-        setHasMore(page.length === HISTORY_PAGE_SIZE);
-        setLoading(false);
-      });
+        setHasMore(more);
+      })
+      .finally(() => setLoading(false));
   }, [session]);
 
   function loadMoreTrips() {
     if (!session || loading || loadingMore || !hasMore) return;
     setLoadingMore(true);
-    supabase
-      .from('trips')
-      .select(TRIP_SUMMARY_SELECT)
-      .eq('user_id', session.user.id)
-      .not('ended_at', 'is', null)
-      .order('started_at', { ascending: false })
-      .range(trips.length, trips.length + HISTORY_PAGE_SIZE - 1)
-      .then(({ data }) => {
-        const page = (data as unknown as TripSummary[]) ?? [];
+    fetchHistoryPage(session.user.id, trips.length, HISTORY_PAGE_SIZE)
+      .then(({ trips: page, hasMore: more }) => {
         setTrips((prev) => [...prev, ...page]);
-        setHasMore(page.length === HISTORY_PAGE_SIZE);
-        setLoadingMore(false);
-      });
+        setHasMore(more);
+      })
+      .finally(() => setLoadingMore(false));
   }
 
   const loadMyProfile = useCallback(() => {
@@ -147,6 +116,26 @@ export default function HistoryScreen() {
       return;
     }
     setTrips((prev) => prev.filter((t) => t.id !== tripId));
+  }
+
+  function confirmUnlinkTrip(tripId: string, companionId: string) {
+    Alert.alert(
+      'Remove from your history?',
+      "This only removes it from your own history — it stays visible to the host and everyone else on the crawl.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: () => unlinkTrip(tripId, companionId) },
+      ]
+    );
+  }
+
+  async function unlinkTrip(tripId: string, companionId: string) {
+    try {
+      await hideCompanionTrip(companionId);
+      setTrips((prev) => prev.filter((t) => t.id !== tripId));
+    } catch (e) {
+      Alert.alert('Failed to remove trip', errorMessage(e));
+    }
   }
 
   function openNameModal() {
@@ -264,13 +253,15 @@ export default function HistoryScreen() {
         }
         ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footerSpinner} /> : null}
         renderItem={({ item }) => {
-          const logs = item.trip_stops?.flatMap((s) => s.drink_logs) ?? [];
-          const companions = (item.trip_companions ?? []).map((c) => ({
-            id: c.id,
-            label: c.profiles?.display_name ?? c.guest_name ?? 'Someone',
-          }));
-          const drinkSummary = summarizeDrinkNames(logs.map((d) => d.drink_name));
-          const byCompanion = companions.length > 0 ? summarizeDrinksByCompanion(logs, companions) : [];
+          const drinkSummary = summarizeDrinkNames(item.logs.map((d) => d.drinkName));
+          const byCompanion =
+            item.companions.length > 0
+              ? summarizeDrinksByCompanion(
+                  item.logs.map((l) => ({ drink_name: l.drinkName, companion_id: l.companionId })),
+                  item.companions.map((c) => ({ id: c.id, label: c.label })),
+                  item.isOwner ? null : item.myCompanionId
+                )
+              : [];
           return (
             <Pressable
               style={styles.card}
@@ -278,17 +269,15 @@ export default function HistoryScreen() {
                 router.push({ pathname: '/(tabs)/history/[id]', params: { id: item.id } })
               }>
               <ThemedText type="defaultSemiBold">
-                {new Date(item.started_at).toLocaleDateString(undefined, {
+                {new Date(item.startedAt).toLocaleDateString(undefined, {
                   weekday: 'short',
                   month: 'short',
                   day: 'numeric',
                 })}
               </ThemedText>
               <ThemedText style={styles.meta}>
-                {item.trip_stops?.length ?? 0} stops · 🍻{' '}
-                {item.trip_stops?.reduce((sum, s) => sum + (s.drink_logs?.length ?? 0), 0) ?? 0} ·{' '}
-                {formatDuration(item.total_duration_s)} ·{' '}
-                {item.total_distance_m ? formatDistance(item.total_distance_m) : '—'}
+                {item.stopCount} stops · 🍻 {item.logs.length} · {formatDuration(item.totalDurationS)} ·{' '}
+                {item.totalDistanceM ? formatDistance(item.totalDistanceM) : '—'}
               </ThemedText>
               {byCompanion.length > 0 ? (
                 <View style={styles.companionBreakdown}>
@@ -305,24 +294,42 @@ export default function HistoryScreen() {
                 drinkSummary && <ThemedText style={styles.drinkNames}>{drinkSummary}</ThemedText>
               )}
               <View style={styles.cardActions}>
-                <Pressable onPress={() => setAction({ type: 'post', tripId: item.id })}>
-                  <ThemedText style={styles.cardAction}>Post to Feed</ThemedText>
-                </Pressable>
-                {item.crawl_id ? (
-                  <Pressable
-                    onPress={() =>
-                      router.push({ pathname: '/(tabs)/crawls/[id]', params: { id: item.crawl_id! } })
-                    }>
-                    <ThemedText style={styles.cardAction}>View Crawl</ThemedText>
-                  </Pressable>
+                {item.isOwner ? (
+                  <>
+                    <Pressable onPress={() => setAction({ type: 'post', tripId: item.id })}>
+                      <ThemedText style={styles.cardAction}>Post to Feed</ThemedText>
+                    </Pressable>
+                    {item.crawlId ? (
+                      <Pressable
+                        onPress={() =>
+                          router.push({ pathname: '/(tabs)/crawls/[id]', params: { id: item.crawlId! } })
+                        }>
+                        <ThemedText style={styles.cardAction}>View Crawl</ThemedText>
+                      </Pressable>
+                    ) : (
+                      <Pressable onPress={() => setAction({ type: 'crawl', tripId: item.id })}>
+                        <ThemedText style={styles.cardAction}>Publish as Crawl</ThemedText>
+                      </Pressable>
+                    )}
+                    <Pressable onPress={() => confirmDeleteTrip(item.id)}>
+                      <ThemedText style={styles.deleteAction}>Delete</ThemedText>
+                    </Pressable>
+                  </>
                 ) : (
-                  <Pressable onPress={() => setAction({ type: 'crawl', tripId: item.id })}>
-                    <ThemedText style={styles.cardAction}>Publish as Crawl</ThemedText>
+                  item.crawlId && (
+                    <Pressable
+                      onPress={() =>
+                        router.push({ pathname: '/(tabs)/crawls/[id]', params: { id: item.crawlId! } })
+                      }>
+                      <ThemedText style={styles.cardAction}>View Crawl</ThemedText>
+                    </Pressable>
+                  )
+                )}
+                {!item.isOwner && item.myCompanionId && (
+                  <Pressable onPress={() => confirmUnlinkTrip(item.id, item.myCompanionId!)}>
+                    <ThemedText style={styles.deleteAction}>Remove from my history</ThemedText>
                   </Pressable>
                 )}
-                <Pressable onPress={() => confirmDeleteTrip(item.id)}>
-                  <ThemedText style={styles.deleteAction}>Delete</ThemedText>
-                </Pressable>
               </View>
             </Pressable>
           );

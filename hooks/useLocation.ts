@@ -44,7 +44,12 @@ function useRealLocation(): LocationState {
 
     return () => {
       cancelled = true;
-      subscription?.remove();
+      try {
+        subscription?.remove();
+      } catch {
+        // expo-location's web shim doesn't implement LocationEventEmitter.removeSubscription
+        // (LegacyEventEmitter returns the raw native module on web instead of wrapping it).
+      }
     };
   }, []);
 

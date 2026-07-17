@@ -74,4 +74,22 @@ describe('summarizeDrinksByCompanion', () => {
   it('returns [] for no logs and no companions', () => {
     expect(summarizeDrinksByCompanion([], [])).toEqual([]);
   });
+
+  it('attributes "You" to a given viewerKey instead of the owner, and excludes that companion from the rest of the list', () => {
+    const logs = [
+      { drink_name: 'IPA', companion_id: null },
+      { drink_name: 'Cider', companion_id: 'c1' },
+      { drink_name: 'Lager', companion_id: 'c2' },
+    ];
+    const companions = [
+      { id: 'owner', label: 'Host Person' },
+      { id: 'c2', label: 'Alex' },
+    ];
+
+    expect(summarizeDrinksByCompanion(logs, companions, 'c1')).toEqual([
+      { label: 'You', summary: 'Cider' },
+      { label: 'Host Person', summary: 'IPA' },
+      { label: 'Alex', summary: 'Lager' },
+    ]);
+  });
 });
